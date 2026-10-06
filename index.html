@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fit-4-Me">
+<meta name="theme-color" content="#4c7a35">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234c7a35'/%3E%3Cpath d='M14 26v12M20 21v22M44 21v22M50 26v12M20 32h24' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Fit-4-Me Training Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column app, sticky header with week strip, tabbed panels (Log / History / Program). Gym whiteboard: chalk ground, coach's sage green, bold condensed caps. */
+:root{
+  --bg:#f3f5ef;
+  --surface:#ffffff;
+  --sunk:#e8ece2;
+  --line:#d3dacb;
+  --fg:#1d2619;
+  --muted:#5f6b58;
+  --accent:#4c7a35;
+  --accent-ink:#ffffff;
+  --accent-soft:#dfe9d4;
+  --warn:#b25a1c;
+  --warn-soft:#f6e3d3;
+  --done:#2f6b3a;
+  --f-display:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+  --f-body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141912;--surface:#1c2318;--sunk:#232c1f;--line:#34402e;--fg:#e7ecdf;--muted:#9aa891;
+  --accent:#8cbf6a;--accent-ink:#11180d;--accent-soft:#2b3a22;--warn:#e59a62;--warn-soft:#3a2a1c;--done:#8cbf6a;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141912;--surface:#1c2318;--sunk:#232c1f;--line:#34402e;--fg:#e7ecdf;--muted:#9aa891;
+  --accent:#8cbf6a;--accent-ink:#11180d;--accent-soft:#2b3a22;--warn:#e59a62;--warn-soft:#3a2a1c;--done:#8cbf6a;color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:16px/1.45 var(--f-body);font-variant-numeric:tabular-nums}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px 64px}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin:0 -16px;padding:12px 16px 0}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand h1{font:800 1.7rem/1 var(--f-display);text-transform:uppercase;letter-spacing:.02em;margin:0}
+.brand h1 span{color:var(--accent)}
+.goal{color:var(--muted);font-size:.9rem}
+.sync{all:unset;cursor:pointer;font:600 .78rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.sync.ok{background:var(--accent-soft);color:var(--done)}
+.sync.warn{background:var(--warn-soft);color:var(--warn)}
+.sync:focus-visible{outline:2px solid var(--accent)}
+code{font-size:.85em;background:var(--sunk);padding:1px 5px;border-radius:4px;word-break:break-all}
+ol.steps{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;max-width:65ch}
+.weekline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;flex-wrap:wrap}
+.wk{font:700 .95rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.wk b{color:var(--fg)}
+.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:10px 0 12px}
+.strip button{all:unset;cursor:pointer;text-align:center;padding:6px 0 7px;border-radius:8px;border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:2px}
+.strip button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.strip .dow{font:600 .7rem var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.strip .dnum{font:700 1.15rem/1 var(--f-display)}
+.strip .dot{height:6px;width:6px;border-radius:50%;margin:2px auto 0;background:transparent}
+.strip .has .dot{background:var(--line)}
+.strip .complete .dot{background:var(--done)}
+.strip .sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.strip .today .dnum{color:var(--accent)}
+nav.tabs{display:flex;gap:2px;overflow-x:auto}
+nav.tabs button{all:unset;cursor:pointer;padding:10px 9px;white-space:nowrap;font:700 1rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:3px solid transparent}
+nav.tabs button[aria-selected="true"]{color:var(--fg);border-color:var(--accent)}
+nav.tabs button:focus-visible{outline:2px solid var(--accent)}
+.iconbtn{all:unset;cursor:pointer;font:700 .9rem var(--f-display);padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+.iconbtn:focus-visible{outline:2px solid var(--accent)}
+main{padding-top:18px;display:flex;flex-direction:column;gap:18px}
+.banner{padding:12px 14px;border-radius:var(--r);background:var(--warn-soft);color:var(--fg);font-size:.92rem}
+.empty{padding:28px 18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+h2.sec{font:800 1.35rem/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.03em;margin:0;text-wrap:balance}
+.lbl{font:600 .75rem var(--f-display);text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+.dayhead{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 .78rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.chip.ok{background:var(--accent-soft);color:var(--done)}
+select,input,textarea{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+textarea{width:100%;min-height:76px;resize:vertical}
+.ex{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.exhead{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;padding:12px 14px;flex-wrap:wrap}
+.exname{font:700 1.2rem/1.15 var(--f-display);letter-spacing:.01em;min-width:0}
+.target{font-size:.88rem;color:var(--muted)}
+.target b{color:var(--fg);font-weight:600}
+.coachnote{margin:0 14px 10px;padding:7px 10px;border-radius:6px;background:var(--warn-soft);font-size:.86rem}
+.sets{border-top:1px solid var(--line);background:var(--sunk);padding:8px 14px 12px;display:flex;flex-direction:column;gap:6px}
+.setrow{display:grid;grid-template-columns:52px 1fr 1fr 44px;gap:8px;align-items:center}
+.setrow.hdr{font:600 .7rem var(--f-display);text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+.setrow .n{font:700 1rem var(--f-display);color:var(--muted)}
+.setrow input{width:100%;text-align:center}
+.tick{all:unset;cursor:pointer;height:36px;width:36px;border-radius:8px;border:1.5px solid var(--line);display:grid;place-items:center;background:var(--surface)}
+.tick svg{width:18px;height:18px;opacity:0}
+.tick[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tick[aria-pressed="true"] svg{opacity:1}
+.tick:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.setactions{display:flex;gap:8px;margin-top:2px}
+.link{all:unset;cursor:pointer;font:600 .85rem var(--f-body);color:var(--accent)}
+.link:focus-visible{outline:2px solid var(--accent)}
+.link.danger{color:var(--warn)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px}
+.panel.coach{border-color:var(--accent);background:var(--accent-soft)}
+.panel.coach textarea{background:var(--surface)}
+.bar{position:sticky;bottom:0;margin:0 -16px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.status{font-size:.86rem;color:var(--muted)}
+.btn{all:unset;cursor:pointer;font:700 1rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:10px 18px;border-radius:8px;background:var(--accent);color:var(--accent-ink);text-align:center}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.btn[disabled]{opacity:.5;cursor:default}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field input,.field select{width:100%}
+/* history */
+.weeks{display:flex;flex-direction:column;gap:8px}
+.weekrow{display:grid;grid-template-columns:92px repeat(7,1fr);gap:6px;align-items:center}
+.cell{height:30px;border-radius:6px;background:var(--sunk);display:grid;place-items:center;font:700 .75rem var(--f-display);color:var(--muted)}
+.cell.has{background:var(--accent-soft);color:var(--done)}
+.cell.complete{background:var(--accent);color:var(--accent-ink)}
+.loglist{display:flex;flex-direction:column;gap:8px}
+.logitem{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.logitem:focus-visible{outline:2px solid var(--accent)}
+.logitem .d{font:700 1.05rem var(--f-display);text-transform:uppercase;letter-spacing:.03em}
+.logitem .s{color:var(--muted);font-size:.88rem}
+.prog{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.progcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.progcard .t{font:700 1.05rem var(--f-display)}
+.progcard .v{font-size:.86rem;color:var(--muted)}
+.progcard svg{width:100%;height:44px;display:block}
+/* program editor */
+.dayed{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px}
+.exed{display:grid;grid-template-columns:2fr 64px 1fr 1fr;gap:8px;padding:10px;border-radius:8px;background:var(--sunk)}
+.exed .full{grid-column:1/-1;display:flex;gap:8px;align-items:center}
+.exed .full input{flex:1}
+.exed input{width:100%}
+@media (max-width:560px){
+  .exed{grid-template-columns:1fr 1fr}
+  .exed .nm{grid-column:1/-1}
+  .weekrow{grid-template-columns:64px repeat(7,1fr)}
+  .brand h1{font-size:1.4rem}
+}
+@media (prefers-reduced-motion:no-preference){.tick,.strip button,.btn{transition:background .15s,border-color .15s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Fit-<span>4-Me</span> · Tolu</h1>
+      <button class="sync" id="syncpill">Loading…</button>
+    </div>
+    <div class="weekline">
+      <div class="wk" id="wklabel">Week —</div>
+      <div style="display:flex;gap:6px">
+        <button class="iconbtn" id="prevwk" aria-label="Previous week">‹</button>
+        <button class="iconbtn" id="todaybtn">Today</button>
+        <button class="iconbtn" id="nextwk" aria-label="Next week">›</button>
+      </div>
+    </div>
+    <div class="strip" id="strip"></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" id="tab-log" aria-selected="true">Log</button>
+      <button role="tab" id="tab-history" aria-selected="false">History</button>
+      <button role="tab" id="tab-program" aria-selected="false">Program</button>
+      <button role="tab" id="tab-settings" aria-selected="false">Settings</button>
+    </nav>
+  </header>
+  <main id="main"><div class="empty">Loading your program…</div></main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const monday = d => { const x = new Date(d); const k = (x.getDay()+6)%7; x.setDate(x.getDate()-k); x.setHours(0,0,0,0); return x; };
+const fmtLong = s => parse(s).toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
+const fmtShort = s => parse(s).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+const uid = () => Math.random().toString(36).slice(2,9);
+const CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
+
+const S = {
+  plan:null, logs:{}, tab:"log",
+  date: ymd(new Date()), weekStart: monday(new Date()),
+  draft:null, draftDate:null, dirty:false, saving:false, status:"",
+  planDraft:null, planDirty:false
+};
+
+/* ---------- data: local storage + Google Sheets sync ---------- */
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const DEFAULT_PROGRAM = {
+  goal:"Up to 5 days a week, 35 mins · Decrease by 15-20 lbs · Nutritional guidance and accountability",
+  weeks:4, startDate:"2026-10-05",
+  equipment:"8, 10, 12, 15, 20 lb dumbbells, adjustable dumbbells, cloth resistance bands, etc.",
+  welcome:"Fill out what you actually did each day (reps/time and weights). If a rep range is given, progress the amount weekly or message me about it. Use the notes for any questions or concerns and text me about them ASAP. I'll check in weekly, and we review monthly (in person preferred). Happy training!",
+  days:[
+    {id:"d1",name:"Day 1",location:"At Home",split:"Total Body",kpi:"Push + Hinge",duration:"35-45 mins",frequency:"Repeat 2-3x week",exercises:[
+      {id:"e1",name:"DB Floor Press",sets:4,reps:"20-25",lbs:"30 lbs total",notes:""},
+      {id:"e2",name:"Glute Bridges, medium band above knees",sets:4,reps:"15",lbs:"",notes:"Make sure no pain in low back"},
+      {id:"e3",name:"Supine March (hands behind head), medium band above knees",sets:4,reps:"10-15 ea",lbs:"",notes:""}]},
+    {id:"d2",name:"Day 2",location:"At Home",split:"Total Body",kpi:"Push + Hinge",duration:"35-45 mins",frequency:"",exercises:[]},
+    {id:"d3",name:"Day 3",location:"In Gym",split:"Total Body",kpi:"",duration:"",frequency:"",exercises:[]}
+  ]
+};
+
+const Sync = {
+  cfg: LS.get("fm.cfg", {url:"", key:""}),
+  pending: LS.get("fm.pending", {}),   // key -> op, coalesced
+  lastSync: LS.get("fm.lastSync", null),
+  state: "idle", busy:false,
+  configured(){ return !!(this.cfg.url && this.cfg.key); },
+  queue(op){
+    const k = op.type==="program" ? "program" : "log:"+op.date;
+    this.pending[k] = op; LS.set("fm.pending", this.pending);
+    clearTimeout(this.t); this.t = setTimeout(()=>this.push(), 400);
+  },
+  apply(res){
+    // server wins, except for anything still waiting to upload
+    const p = this.pending;
+    S.plan = p.program ? p.program.data : (res.program || S.plan);
+    const logs = Object.assign({}, res.logs || {});
+    Object.values(p).forEach(op => {
+      if(op.type==="log") logs[op.date] = op.data;
+      if(op.type==="deleteLog") delete logs[op.date];
+    });
+    S.logs = logs;
+    this.lastSync = new Date().toISOString(); LS.set("fm.lastSync", this.lastSync);
+    persist();
+  },
+  async pull(){
+    if(!this.configured() || this.busy) return;
+    this.busy = true;
+    try{
+      const r = await fetch(this.cfg.url + (this.cfg.url.includes("?")?"&":"?") + "key=" + encodeURIComponent(this.cfg.key));
+      const res = await r.json();
+      if(!res.ok){ this.state = res.error==="bad_passcode" ? "badkey" : "error"; }
+      else {
+        this.state = "ok";
+        if(!res.program && !this.pending.program){ this.pending.program = {type:"program", data:S.plan || DEFAULT_PROGRAM}; LS.set("fm.pending", this.pending); }
+        this.apply(res);
+      }
+    }catch(e){ this.state = "offline"; }
+    this.busy = false;
+    if(Object.keys(this.pending).length && this.state==="ok") await this.push();
+    afterSync();
+  },
+  async push(){
+    if(!this.configured() || this.busy) return;
+    const keys = Object.keys(this.pending); if(!keys.length) return;
+    this.busy = true;
+    const ops = keys.map(k => this.pending[k]);
+    try{
+      const r = await fetch(this.cfg.url, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify({key:this.cfg.key, ops})});
+      const res = await r.json();
+      if(!res.ok){ this.state = res.error==="bad_passcode" ? "badkey" : "error"; }
+      else {
+        // clear only ops that haven't been replaced while we were uploading
+        keys.forEach((k,i) => { if(this.pending[k] === ops[i]) delete this.pending[k]; });
+        LS.set("fm.pending", this.pending);
+        this.state = "ok"; this.apply(res);
+      }
+    }catch(e){ this.state = "offline"; }
+    this.busy = false;
+    afterSync();
+    if(Object.keys(this.pending).length && this.state==="ok"){ clearTimeout(this.t); this.t = setTimeout(()=>this.push(), 800); }
+  },
+  label(){
+    const n = Object.keys(this.pending).length;
+    if(!this.configured()) return {cls:"warn", text:"Not syncing · Settings"};
+    if(this.state==="badkey") return {cls:"warn", text:"Wrong passcode · Settings"};
+    if(this.state==="offline" || this.state==="error") return {cls:"warn", text: n ? `Offline · ${n} change${n>1?"s":""} waiting` : "Offline"};
+    if(n || this.busy) return {cls:"", text:"Syncing…"};
+    if(this.lastSync) return {cls:"ok", text:"Synced " + new Date(this.lastSync).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})};
+    return {cls:"", text:"Connecting…"};
+  }
+};
+
+function persist(){ LS.set("fm.data", {plan:S.plan, logs:S.logs}); }
+function afterSync(){
+  if(S.dirty){ paintHeader(); return; }
+  // don't clobber a form someone is typing in
+  const a = document.activeElement;
+  if(a && a.matches && a.matches("input,textarea,select") && $("#main").contains(a)){ paintHeader(); return; }
+  if(S.draftDate) loadDraft(S.draftDate, true);
+  if(!S.planDirty) S.planDraft = null;
+  render();
+}
+
+function boot(){
+  // one-tap setup link: ?sync=<web app url>&key=<passcode>
+  const q = new URLSearchParams(location.search);
+  if(q.get("sync") && q.get("key")){
+    Sync.cfg = {url:q.get("sync"), key:q.get("key")}; LS.set("fm.cfg", Sync.cfg);
+    history.replaceState(null, "", location.pathname);
+  }
+  const cached = LS.get("fm.data", null);
+  S.plan = (cached && cached.plan) || DEFAULT_PROGRAM;
+  S.logs = (cached && cached.logs) || {};
+  S.planLoaded = true;
+  if(!Sync.configured()) S.tab = Object.keys(S.logs).length ? "log" : "settings";
+  render();
+  Sync.pull();
+  document.addEventListener("visibilitychange", () => { if(!document.hidden) Sync.pull(); });
+  window.addEventListener("online", () => Sync.pull());
+  setInterval(() => { if(!document.hidden && !S.dirty) Sync.pull(); }, 60000);
+}
+
+function days(){ return (S.plan && Array.isArray(S.plan.days)) ? S.plan.days : []; }
+function dayById(id){ return days().find(d => d.id === id); }
+
+function suggestDay(date){
+  const ds = days(); if(!ds.length) return null;
+  const prev = Object.values(S.logs).filter(l => l.date < date && l.dayId).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  if(!prev) return ds[0].id;
+  const i = ds.findIndex(d => d.id === prev.dayId);
+  return ds[(i+1) % ds.length].id;
+}
+
+function blankSets(ex){ const n = Math.max(1, Number(ex.sets)||1); return Array.from({length:n}, () => ({reps:"", lbs:"", done:false})); }
+
+function loadDraft(date, keepDay){
+  const existing = S.logs[date];
+  if(existing){
+    S.draft = JSON.parse(JSON.stringify(existing));
+    S.draft.entries = S.draft.entries || {};
+  } else {
+    const dayId = (keepDay && S.draft && S.draftDate === date && S.draft.dayId) || suggestDay(date);
+    S.draft = { date, dayId, entries:{}, notes:"", coachFeedback:"", complete:false };
+  }
+  const day = dayById(S.draft.dayId);
+  if(day) (day.exercises||[]).forEach(ex => { if(!S.draft.entries[ex.id]) S.draft.entries[ex.id] = blankSets(ex); });
+  S.draftDate = date; S.dirty = false;
+}
+
+let saveTimer = null;
+function markDirty(){ S.dirty = true; S.status = "Unsaved changes"; paintStatus(); clearTimeout(saveTimer); saveTimer = setTimeout(saveLog, 1200); }
+async function saveLog(){
+  clearTimeout(saveTimer);
+  if(!S.draft || !S.dirty) return;
+  const body = JSON.parse(JSON.stringify(S.draft)); body.updatedAt = new Date().toISOString();
+  S.logs[body.date] = body; persist();
+  S.dirty = false; S.status = "Saved"; paintStatus();
+  Sync.queue({type:"log", date:body.date, data:body});
+  paintHeader();
+}
+async function deleteLog(){
+  if(!S.logs[S.date]) return;
+  delete S.logs[S.date]; persist();
+  Sync.queue({type:"deleteLog", date:S.date});
+  S.draftDate = null; S.confirmDel = false; loadDraft(S.date); S.status = "Workout removed"; render();
+}
+async function savePlan(){
+  if(!S.planDraft) return;
+  S.plan = JSON.parse(JSON.stringify(S.planDraft)); persist();
+  Sync.queue({type:"program", data:S.plan});
+  S.planDirty = false; S.planDraft = null; S.planStatus = "Program saved"; render();
+}
+/* ---------- header ---------- */
+function programWeek(date){
+  if(!S.plan || !S.plan.startDate) return null;
+  const diff = Math.floor((monday(parse(date)) - monday(parse(S.plan.startDate))) / 864e5 / 7);
+  return diff + 1;
+}
+function paintHeader(){
+  const sl = Sync.label(); const pill = $("#syncpill"); pill.className = "sync " + sl.cls; pill.textContent = sl.text;
+  const wkDate = ymd(S.weekStart);
+  const pw = programWeek(wkDate), total = (S.plan && S.plan.weeks) || 4;
+  const end = addDays(S.weekStart,6);
+  const range = `${fmtShort(wkDate)} – ${fmtShort(ymd(end))}`;
+  const done = [...Array(7)].map((_,i)=>S.logs[ymd(addDays(S.weekStart,i))]).filter(l=>l && l.complete).length;
+  $("#wklabel").innerHTML = (pw && pw>0 ? `<b>Week ${pw}</b> of ${total} · ` : "") + `${range} · <b>${done}</b> done`;
+  const today = ymd(new Date());
+  $("#strip").innerHTML = [...Array(7)].map((_,i)=>{
+    const d = addDays(S.weekStart,i), k = ymd(d), l = S.logs[k];
+    const cls = [l?"has":"", l&&l.complete?"complete":"", k===S.date?"sel":"", k===today?"today":""].join(" ");
+    return `<button class="${cls}" data-date="${k}" aria-label="${fmtLong(k)}${l&&l.complete?', workout done':''}"><span class="dow">${d.toLocaleDateString(undefined,{weekday:"short"})}</span><span class="dnum">${d.getDate()}</span><span class="dot"></span></button>`;
+  }).join("");
+  ["log","history","program","settings"].forEach(t => $("#tab-"+t).setAttribute("aria-selected", String(S.tab===t)));
+}
+
+/* ---------- views ---------- */
+function render(){
+  paintHeader();
+  const m = $("#main");
+  if(!S.planLoaded){ m.innerHTML = `<div class="empty">Loading your program…</div>`; return; }
+  let html = S.err ? `<div class="banner">${esc(S.err)}</div>` : "";
+  if(S.tab==="log") html += viewLog();
+  if(S.tab==="history") html += viewHistory();
+  if(S.tab==="program") html += viewProgram();
+  if(S.tab==="settings") html += viewSettings();
+  m.innerHTML = html;
+}
+
+function viewLog(){
+  if(!days().length) return `<div class="empty">No program yet. Open <b>Program</b> to add training days and exercises.</div>`;
+  if(S.draftDate !== S.date) loadDraft(S.date);
+  const D = S.draft, day = dayById(D.dayId);
+  const opts = days().map(d => `<option value="${esc(d.id)}" ${d.id===D.dayId?"selected":""}>${esc(d.name)}${d.location?" · "+esc(d.location):""}</option>`).join("");
+  let h = `<section class="dayhead">
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+      <span class="lbl">${esc(fmtLong(S.date))}</span>
+      <h2 class="sec">${day ? esc(day.name) : "Pick a workout"}${day && day.location ? ` <span style="color:var(--muted)">· ${esc(day.location)}</span>`:""}</h2>
+      ${day ? `<div class="chips">${day.split?`<span class="chip">${esc(day.split)}</span>`:""}${day.kpi?`<span class="chip">KPI: ${esc(day.kpi)}</span>`:""}${day.duration?`<span class="chip">${esc(day.duration)}</span>`:""}${day.frequency?`<span class="chip">${esc(day.frequency)}</span>`:""}${D.complete?`<span class="chip ok">Completed</span>`:""}</div>`:""}
+    </div>
+    <div class="field" style="max-width:260px;width:100%"><label class="lbl" for="daysel">Workout</label><select id="daysel">${opts}</select></div>
+  </section>`;
+  if(day){
+    const exs = day.exercises||[];
+    if(!exs.length) h += `<div class="empty">Your coach hasn't added exercises to ${esc(day.name)} yet. They go in the <b>Program</b> tab.</div>`;
+    exs.forEach(ex => {
+      const sets = D.entries[ex.id] || [];
+      const doneCount = sets.filter(s=>s.done).length;
+      h += `<article class="ex">
+        <div class="exhead">
+          <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
+            <div class="exname">${esc(ex.name)}</div>
+            <div class="target">Target <b>${esc(ex.sets||"–")} sets</b> × <b>${esc(ex.reps||"–")}</b>${ex.lbs?` · <b>${esc(ex.lbs)}</b>`:""}</div>
+          </div>
+          <span class="chip ${doneCount && doneCount>=sets.length?"ok":""}">${doneCount}/${sets.length} sets</span>
+        </div>
+        ${ex.notes?`<div class="coachnote"><b>Coach:</b> ${esc(ex.notes)}</div>`:""}
+        <div class="sets">
+          <div class="setrow hdr"><span>Set</span><span>Reps / time</span><span>Lbs</span><span></span></div>
+          ${sets.map((s,i)=>`<div class="setrow">
+            <span class="n">${i+1}</span>
+            <input id="r-${esc(ex.id)}-${i}" inputmode="text" data-ex="${esc(ex.id)}" data-i="${i}" data-k="reps" value="${esc(s.reps)}" placeholder="${esc(ex.reps||"")}" aria-label="Set ${i+1} reps">
+            <input id="l-${esc(ex.id)}-${i}" inputmode="decimal" data-ex="${esc(ex.id)}" data-i="${i}" data-k="lbs" value="${esc(s.lbs)}" placeholder="${esc(String(ex.lbs||"").replace(/[^0-9.]/g,""))}" aria-label="Set ${i+1} pounds">
+            <button class="tick" data-tick="${esc(ex.id)}" data-i="${i}" aria-pressed="${!!s.done}" aria-label="Mark set ${i+1} done">${CHECK}</button>
+          </div>`).join("")}
+          <div class="setactions"><button class="link" data-addset="${esc(ex.id)}">+ Add set</button>${sets.length>1?`<button class="link danger" data-rmset="${esc(ex.id)}">Remove last set</button>`:""}</div>
+        </div>
+      </article>`;
+    });
+  }
+  h += `<section class="panel">
+      <label class="lbl" for="notes">My notes for the coach</label>
+      <textarea id="notes" placeholder="How did it feel? Any pain, questions, or swaps you made?">${esc(D.notes)}</textarea>
+    </section>
+    <section class="panel coach">
+      <label class="lbl" for="coachfb">Coach feedback</label>
+      <textarea id="coachfb" placeholder="Coach: leave feedback on this workout here.">${esc(D.coachFeedback)}</textarea>
+    </section>`;
+  const exists = !!S.logs[S.date];
+  h += `<div class="bar">
+    <span class="status" id="status">${esc(S.status || (exists ? "Saved" : "Not logged yet"))}</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${exists ? (S.confirmDel ? `<button class="btn ghost" id="delyes">Yes, delete this day</button><button class="btn ghost" id="delno">Keep it</button>` : `<button class="btn ghost" id="delask">Delete</button>`) : ""}
+      <button class="btn ${D.complete?"ghost":""}" id="complete">${D.complete?"Mark not done":"Finish workout"}</button>
+    </div>
+  </div>`;
+  return h;
+}
+function paintStatus(){ const el = $("#status"); if(el) el.textContent = S.status; }
+
+function summarize(l){
+  const day = dayById(l.dayId);
+  let sets=0, done=0;
+  Object.values(l.entries||{}).forEach(a => a.forEach(s => { sets++; if(s.done) done++; }));
+  return { name: day ? day.name : "Workout", done, sets };
+}
+function viewHistory(){
+  const all = Object.values(S.logs).sort((a,b)=>b.date.localeCompare(a.date));
+  let h = `<section class="panel"><div class="dayhead"><h2 class="sec">Consistency</h2><span class="lbl">last 6 weeks</span></div><div class="weeks">`;
+  const dows = ["M","T","W","T","F","S","S"];
+  h += `<div class="weekrow"><span></span>${dows.map(d=>`<span class="lbl" style="text-align:center">${d}</span>`).join("")}</div>`;
+  for(let w=5; w>=0; w--){
+    const ws = addDays(monday(new Date()), -7*w);
+    const cnt = [...Array(7)].filter((_,i)=>{const l=S.logs[ymd(addDays(ws,i))];return l&&l.complete;}).length;
+    h += `<div class="weekrow"><span class="lbl">${fmtShort(ymd(ws))} · ${cnt}</span>${[...Array(7)].map((_,i)=>{const k=ymd(addDays(ws,i)),l=S.logs[k];return `<span class="cell ${l?"has":""} ${l&&l.complete?"complete":""}" title="${esc(fmtLong(k))}">${l&&l.complete?"✓":""}</span>`}).join("")}</div>`;
+  }
+  h += `</div></section>`;
+
+  // progress per exercise
+  const exMap = {};
+  days().forEach(d => (d.exercises||[]).forEach(ex => exMap[ex.id] = ex));
+  const series = {};
+  all.slice().reverse().forEach(l => Object.entries(l.entries||{}).forEach(([id,arr]) => {
+    if(!exMap[id]) return;
+    const reps = arr.reduce((t,s)=>t+(parseFloat(s.reps)||0),0);
+    const lbs = Math.max(0,...arr.map(s=>parseFloat(s.lbs)||0));
+    if(!reps && !lbs) return;
+    (series[id] = series[id]||[]).push({date:l.date, reps, lbs, line: arr.filter(s=>s.reps||s.lbs).map(s=>s.reps||"–").join(", ")});
+  }));
+  const ids = Object.keys(series);
+  h += `<section style="display:flex;flex-direction:column;gap:10px"><h2 class="sec">Progress by exercise</h2>`;
+  if(!ids.length) h += `<div class="empty">Log a few sessions and each exercise's reps and weight will show up here.</div>`;
+  else h += `<div class="prog">${ids.map(id=>{
+    const s = series[id], last = s[s.length-1], max = Math.max(...s.map(p=>p.reps),1);
+    const W=240,H=44, step = s.length>1 ? (W-8)/(s.length-1) : 0;
+    const pts = s.map((p,i)=>[4+i*step, H-4-(p.reps/max)*(H-10)]);
+    const path = pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+    const area = s.length>1 ? `<path d="${path} L${pts[pts.length-1][0].toFixed(1)} ${H} L4 ${H} Z" fill="var(--accent-soft)"/>` : "";
+    return `<div class="progcard"><div class="t">${esc(exMap[id].name)}</div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${area}<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3.5" fill="var(--accent)"/></svg>
+      <div class="v">Last (${esc(fmtShort(last.date))}): ${esc(last.line)} reps${last.lbs?` @ ${last.lbs} lbs`:""} · ${s.length} session${s.length>1?"s":""}</div></div>`;
+  }).join("")}</div>`;
+  h += `</section>`;
+
+  h += `<section style="display:flex;flex-direction:column;gap:10px"><h2 class="sec">All workouts</h2>`;
+  if(!all.length) h += `<div class="empty">No workouts logged yet. Pick a day above and start with the Log tab.</div>`;
+  else h += `<div class="loglist">${all.map(l=>{const s=summarize(l);return `<button class="logitem" data-open="${esc(l.date)}">
+      <div style="min-width:0"><div class="d">${esc(fmtLong(l.date))}</div><div class="s">${esc(s.name)} · ${s.done}/${s.sets} sets${l.notes?" · has notes":""}${l.coachFeedback?" · coach replied":""}</div></div>
+      <span class="chip ${l.complete?"ok":""}">${l.complete?"Done":"In progress"}</span></button>`}).join("")}</div>`;
+  h += `</section>`;
+  return h;
+}
+
+function viewProgram(){
+  if(!S.planDraft) S.planDraft = JSON.parse(JSON.stringify(S.plan || {goal:"",weeks:4,startDate:ymd(monday(new Date())),equipment:"",welcome:"",days:[]}));
+  const P = S.planDraft;
+  let h = `<section class="panel">
+    <h2 class="sec">Program details</h2>
+    <div class="grid2">
+      <div class="field" style="grid-column:1/-1"><label class="lbl" for="p-goal">Goal</label><input id="p-goal" data-p="goal" value="${esc(P.goal)}"></div>
+      <div class="field"><label class="lbl" for="p-start">Program start (week 1)</label><input id="p-start" type="date" data-p="startDate" value="${esc(P.startDate)}"></div>
+      <div class="field"><label class="lbl" for="p-weeks">Length (weeks)</label><input id="p-weeks" inputmode="numeric" data-p="weeks" value="${esc(P.weeks)}"></div>
+      <div class="field" style="grid-column:1/-1"><label class="lbl" for="p-eq">Equipment</label><input id="p-eq" data-p="equipment" value="${esc(P.equipment)}"></div>
+    </div>
+    <div class="field"><label class="lbl" for="p-wel">Coach's instructions</label><textarea id="p-wel" data-p="welcome">${esc(P.welcome)}</textarea></div>
+  </section>`;
+  (P.days||[]).forEach((d,di)=>{
+    h += `<section class="dayed">
+      <div class="grid2">
+        <div class="field"><label class="lbl" for="d-${di}-name">Day name</label><input id="d-${di}-name" data-d="${di}" data-f="name" value="${esc(d.name)}"></div>
+        <div class="field"><label class="lbl" for="d-${di}-loc">Where</label><input id="d-${di}-loc" data-d="${di}" data-f="location" value="${esc(d.location)}" placeholder="At Home / In Gym"></div>
+        <div class="field"><label class="lbl" for="d-${di}-split">Split</label><input id="d-${di}-split" data-d="${di}" data-f="split" value="${esc(d.split)}"></div>
+        <div class="field"><label class="lbl" for="d-${di}-kpi">KPI</label><input id="d-${di}-kpi" data-d="${di}" data-f="kpi" value="${esc(d.kpi)}"></div>
+        <div class="field"><label class="lbl" for="d-${di}-dur">Duration</label><input id="d-${di}-dur" data-d="${di}" data-f="duration" value="${esc(d.duration)}"></div>
+        <div class="field"><label class="lbl" for="d-${di}-freq">How often</label><input id="d-${di}-freq" data-d="${di}" data-f="frequency" value="${esc(d.frequency)}"></div>
+      </div>
+      <span class="lbl">Exercises</span>
+      ${(d.exercises||[]).map((ex,ei)=>`<div class="exed">
+        <div class="field nm"><label class="lbl" for="e-${di}-${ei}-n">Exercise</label><input id="e-${di}-${ei}-n" data-d="${di}" data-e="${ei}" data-f="name" value="${esc(ex.name)}"></div>
+        <div class="field"><label class="lbl" for="e-${di}-${ei}-s">Sets</label><input id="e-${di}-${ei}-s" inputmode="numeric" data-d="${di}" data-e="${ei}" data-f="sets" value="${esc(ex.sets)}"></div>
+        <div class="field"><label class="lbl" for="e-${di}-${ei}-r">Reps / time</label><input id="e-${di}-${ei}-r" data-d="${di}" data-e="${ei}" data-f="reps" value="${esc(ex.reps)}"></div>
+        <div class="field"><label class="lbl" for="e-${di}-${ei}-l">Lbs</label><input id="e-${di}-${ei}-l" data-d="${di}" data-e="${ei}" data-f="lbs" value="${esc(ex.lbs)}"></div>
+        <div class="full"><input id="e-${di}-${ei}-no" aria-label="Coach note" data-d="${di}" data-e="${ei}" data-f="notes" value="${esc(ex.notes)}" placeholder="Coach note or modification"><button class="link danger" data-rmex="${di}-${ei}">Remove</button></div>
+      </div>`).join("")}
+      <div style="display:flex;gap:16px;flex-wrap:wrap"><button class="link" data-addex="${di}">+ Add exercise</button><button class="link danger" data-rmday="${di}">Remove this day</button></div>
+    </section>`;
+  });
+  h += `<div><button class="btn ghost" id="addday">+ Add training day</button></div>
+  <div class="bar"><span class="status">${esc(S.planDirty ? "Unsaved program changes" : (S.planStatus||"Up to date"))}</span>
+  <div style="display:flex;gap:8px">${S.planDirty?`<button class="btn ghost" id="plancancel">Discard</button>`:""}<button class="btn" id="plansave" ${S.planDirty?"":"disabled"}>Save program</button></div></div>`;
+  return h;
+}
+
+function viewSettings(){
+  const c = Sync.cfg;
+  const link = Sync.configured() ? location.origin + location.pathname + "?sync=" + encodeURIComponent(c.url) + "&key=" + encodeURIComponent(c.key) : "";
+  return `<section class="panel">
+    <h2 class="sec">Sync with Google Sheets</h2>
+    <p style="margin:0;max-width:65ch;color:var(--muted)">Workouts save on this device right away. Connect your Google Sheet so you and your coach see the same log on any phone or computer.</p>
+    <div class="field"><label class="lbl" for="cfg-url">Apps Script web app URL</label><input id="cfg-url" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></div>
+    <div class="field"><label class="lbl" for="cfg-key">Passcode</label><input id="cfg-key" value="${esc(c.key)}" autocomplete="off"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn" id="cfgsave">Save and sync</button><span class="status">${esc(Sync.label().text)}</span></div>
+  </section>
+  ${link ? `<section class="panel coach">
+    <h2 class="sec">Invite your coach</h2>
+    <p style="margin:0;max-width:65ch">Send her this link. Opening it connects her phone to the same log, no account needed. Anyone with the link can edit, so only share it with her.</p>
+    <code id="invite">${esc(link)}</code>
+    <div><button class="btn ghost" id="copyinvite">Copy link</button> <span class="status" id="copystatus"></span></div>
+  </section>` : `<section class="panel"><h2 class="sec">First-time setup</h2>
+    <ol class="steps">
+      <li>Create a new Google Sheet and open <b>Extensions › Apps Script</b>.</li>
+      <li>Paste in <code>Code.gs</code>, change the passcode at the top, and save.</li>
+      <li><b>Deploy › New deployment › Web app</b>. Execute as <b>Me</b>, access <b>Anyone</b>. Copy the URL.</li>
+      <li>Paste the URL and passcode above and tap <b>Save and sync</b>.</li>
+    </ol></section>`}
+  <section class="panel"><h2 class="sec">Program info</h2>
+    <div><span class="lbl">Goal</span><div>${esc(S.plan && S.plan.goal)}</div></div>
+    <div><span class="lbl">Equipment</span><div>${esc(S.plan && S.plan.equipment)}</div></div>
+    <div><span class="lbl">Coach's instructions</span><div style="max-width:65ch">${esc(S.plan && S.plan.welcome)}</div></div>
+  </section>`;
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if(!t) return;
+  if(t.id==="syncpill"){ if(Sync.configured() && Sync.state!=="badkey") Sync.pull(); else { S.tab="settings"; render(); } return; }
+  if(t.id==="cfgsave"){ Sync.cfg = {url:$("#cfg-url").value.trim(), key:$("#cfg-key").value.trim()}; LS.set("fm.cfg", Sync.cfg); Sync.state="idle"; render(); Sync.pull(); return; }
+  if(t.id==="copyinvite"){ const txt = $("#invite").textContent; const done = m => { const el=$("#copystatus"); if(el) el.textContent=m; };
+    try{ navigator.clipboard.writeText(txt).then(()=>done("Copied"), ()=>{ selectText($("#invite")); done("Press copy to finish"); }); }catch(e){ selectText($("#invite")); done("Press copy to finish"); } return; }
+  if(t.dataset.date){ if(S.dirty) saveLog(); S.date = t.dataset.date; S.status=""; S.confirmDel=false; if(S.tab!=="program") S.tab="log"; render(); return; }
+  if(t.id==="prevwk"||t.id==="nextwk"){ S.weekStart = addDays(S.weekStart, t.id==="prevwk"?-7:7); paintHeader(); return; }
+  if(t.id==="todaybtn"){ if(S.dirty) saveLog(); S.weekStart = monday(new Date()); S.date = ymd(new Date()); S.status=""; render(); return; }
+  if(t.id && t.id.startsWith("tab-")){ if(S.dirty) saveLog(); S.tab = t.id.slice(4); render(); window.scrollTo(0,0); return; }
+  if(t.dataset.open){ S.date = t.dataset.open; S.weekStart = monday(parse(S.date)); S.tab="log"; S.status=""; render(); window.scrollTo(0,0); return; }
+  const D = S.draft;
+  if(t.dataset.tick){ const s = D.entries[t.dataset.tick][+t.dataset.i]; s.done = !s.done;
+    if(s.done){ const ex = (dayById(D.dayId).exercises||[]).find(x=>x.id===t.dataset.tick);
+      if(!s.reps && ex) s.reps = String(ex.reps||"").split(/[-–\s]/)[0];
+      if(!s.lbs && ex) s.lbs = String(ex.lbs||"").replace(/[^0-9.]/g,""); }
+    markDirty(); render(); return; }
+  if(t.dataset.addset){ const a = D.entries[t.dataset.addset]; const last = a[a.length-1]||{}; a.push({reps:"",lbs:last.lbs||"",done:false}); markDirty(); render(); return; }
+  if(t.dataset.rmset){ D.entries[t.dataset.rmset].pop(); markDirty(); render(); return; }
+  if(t.id==="complete"){ D.complete = !D.complete; S.dirty = true; saveLog().then(render); render(); return; }
+  if(t.id==="delask"){ S.confirmDel = true; render(); return; }
+  if(t.id==="delno"){ S.confirmDel = false; render(); return; }
+  if(t.id==="delyes"){ deleteLog(); return; }
+  const P = S.planDraft;
+  if(t.dataset.addex!==undefined){ P.days[+t.dataset.addex].exercises.push({id:uid(),name:"",sets:3,reps:"",lbs:"",notes:""}); S.planDirty=true; render(); return; }
+  if(t.dataset.rmex){ const [di,ei]=t.dataset.rmex.split("-").map(Number); P.days[di].exercises.splice(ei,1); S.planDirty=true; render(); return; }
+  if(t.dataset.rmday!==undefined){ P.days.splice(+t.dataset.rmday,1); S.planDirty=true; render(); return; }
+  if(t.id==="addday"){ P.days.push({id:uid(),name:"Day "+(P.days.length+1),location:"",split:"",kpi:"",duration:"",frequency:"",exercises:[]}); S.planDirty=true; render(); return; }
+  if(t.id==="plansave"){ savePlan(); return; }
+  if(t.id==="plancancel"){ S.planDraft=null; S.planDirty=false; S.planStatus=""; render(); return; }
+});
+document.addEventListener("input", e => {
+  const el = e.target;
+  if(el.dataset.k){ S.draft.entries[el.dataset.ex][+el.dataset.i][el.dataset.k] = el.value; markDirty(); return; }
+  if(el.id==="notes"){ S.draft.notes = el.value; markDirty(); return; }
+  if(el.id==="coachfb"){ S.draft.coachFeedback = el.value; markDirty(); return; }
+  const P = S.planDraft; if(!P) return;
+  if(el.dataset.p){ P[el.dataset.p] = el.dataset.p==="weeks" ? (parseInt(el.value)||el.value) : el.value; }
+  else if(el.dataset.e!==undefined){ const ex = P.days[+el.dataset.d].exercises[+el.dataset.e]; ex[el.dataset.f] = el.dataset.f==="sets" ? (parseInt(el.value)||el.value) : el.value; }
+  else if(el.dataset.d!==undefined){ P.days[+el.dataset.d][el.dataset.f] = el.value; }
+  else return;
+  if(!S.planDirty){ S.planDirty = true; const st = document.querySelector(".bar .status"); if(st) st.textContent="Unsaved program changes"; const b=$("#plansave"); if(b) b.disabled=false; }
+});
+document.addEventListener("change", e => {
+  if(e.target.id==="daysel"){
+    S.draft.dayId = e.target.value;
+    const day = dayById(S.draft.dayId);
+    (day.exercises||[]).forEach(ex => { if(!S.draft.entries[ex.id]) S.draft.entries[ex.id] = blankSets(ex); });
+    markDirty(); render();
+  }
+});
+window.addEventListener("pagehide", () => { if(S.dirty) saveLog(); });
+
+function selectText(el){ const r=document.createRange(); r.selectNodeContents(el); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
+boot();
+</script>
+</body>
+</html>
