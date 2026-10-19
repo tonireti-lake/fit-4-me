@@ -157,6 +157,20 @@ textarea{width:100%;min-height:76px;resize:vertical}
 }
 @media (prefers-reduced-motion:no-preference){.tick,.strip button,.btn{transition:background .15s,border-color .15s}}
 .iconbtn.rbtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.banner.ok{background:var(--accent-soft)}
+.sched{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.sched li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.sched li:first-child{border-top:0}
+.sched li.past{opacity:.72}
+.sched .sn{font:700 1.05rem var(--f-display)}
+.sched .sd{font-size:.86rem;color:var(--muted)}
+.sched .sa{display:flex;gap:12px;align-items:center}
+.assign{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.libcard{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--sunk);min-width:0}
+.libcard .ln{font:700 1.15rem/1.15 var(--f-display)}
+.libcard .lm{font-size:.86rem;color:var(--muted)}
+.libcard .la{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 .rbar{flex-direction:column;align-items:stretch}
 .rbar .acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .rbar .btn{padding:10px 6px;font-size:.92rem}
@@ -172,7 +186,7 @@ textarea{width:100%;min-height:76px;resize:vertical}
 .rnote{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:var(--sunk)}
 .rnote.coachfb{background:var(--accent-soft)}
 </style>
- 
+
 </head>
 <body>
 <div class="wrap">
@@ -200,7 +214,7 @@ textarea{width:100%;min-height:76px;resize:vertical}
   </header>
   <main id="main"><div class="empty">Loading your program…</div></main>
 </div>
- 
+
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -213,14 +227,14 @@ const fmtLong = s => parse(s).toLocaleDateString(undefined,{weekday:"long",month
 const fmtShort = s => parse(s).toLocaleDateString(undefined,{month:"short",day:"numeric"});
 const uid = () => Math.random().toString(36).slice(2,9);
 const CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
- 
+
 const S = {
   plan:null, logs:{}, tab:"log",
   date: ymd(new Date()), weekStart: monday(new Date()),
   draft:null, draftDate:null, dirty:false, saving:false, status:"",
   planDraft:null, planDirty:false
 };
- 
+
 /* ---------- data: local storage + Google Sheets sync ---------- */
 const LS = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
@@ -240,12 +254,12 @@ const DEFAULT_PROGRAM = {
     {id:"d3",name:"Day 3",location:"In Gym",split:"Total Body",kpi:"",duration:"",exercises:[]}
   ]
 };
- 
+
 /* ===== YOUR SHEET =====
    Paste your Apps Script web app URL (ends in /exec) between the quotes.
    It's safe in a public repo: the Sheet answers nothing without the passcode. */
-const SYNC_URL = "";
- 
+const SYNC_URL = "https://script.google.com/macros/s/AKfycbzBppMKTP5nnBQPCs4DeCHKpJOq0zS3Jnj1se3-o4AWh6LOCQH1SMwXWfeUjuTdQjOhEA/exec";
+
 const Sync = {
   cfg: Object.assign({url:"", key:""}, LS.get("fm.cfg", {})),
   pending: LS.get("fm.pending", {}),   // key -> op, coalesced
@@ -322,7 +336,7 @@ const Sync = {
     return {cls:"", text:"Connecting…"};
   }
 };
- 
+
 function persist(){ LS.set("fm.data", {plan:S.plan, logs:S.logs}); }
 function afterSync(){
   if(S.dirty){ paintHeader(); return; }
@@ -330,10 +344,11 @@ function afterSync(){
   const a = document.activeElement;
   if(a && a.matches && a.matches("input,textarea,select") && $("#main").contains(a)){ paintHeader(); return; }
   if(S.draftDate) loadDraft(S.draftDate, true);
-  if(!S.planDirty) S.planDraft = null;
+  if(S.editId && !S.planDirty && progById(S.editId)) S.planDraft = clone(progById(S.editId));
+  else if(!S.editId) S.planDraft = null;
   render();
 }
- 
+
 function boot(){
   // Old invite links carried the URL and passcode. Use them once, then wipe them from the address bar.
   const q = new URLSearchParams(location.search);
@@ -353,8 +368,8 @@ function boot(){
   window.addEventListener("online", () => Sync.pull());
   setInterval(() => { if(!document.hidden && !S.dirty) Sync.pull(); }, 60000);
 }
- 
-/* ---------- program model ---------- */
+
+/* ---------- program model: a library of reusable programs + a schedule ---------- */
 const OPT = {
   where:["At Home","In Gym"],
   split:["Total Body","Upper Body","Lower Body","Core"],
@@ -362,22 +377,24 @@ const OPT = {
   duration:["15-20 mins","20-30 mins","30-40 mins","35-45 mins","45-60 mins","60+ mins"]
 };
 const clone = o => JSON.parse(JSON.stringify(o));
+const weeksBetween = (a, b) => Math.round((monday(parse(b)) - monday(parse(a))) / 864e5 / 7);
 function blankDay(n){ return {id:uid(), name:"Day "+n, location:"", split:"", kpi:"", duration:"", exercises:[]}; }
 function ensureDays(w){ const need = w.mode==="same" ? 1 : w.frequency; while(w.days.length < need) w.days.push(blankDay(w.days.length+1)); }
 function activeDays(w){ return w ? (w.mode==="same" ? w.days.slice(0,1) : w.days.slice(0, w.frequency)) : []; }
-// Accepts the old single-list format and the week-by-week format.
-function normalizePlan(src){
+function normalizeProgram(src, fallbackName){
   const p = clone(src || {});
+  p.id = p.id || uid();
+  p.name = (p.name || fallbackName || "Untitled program");
   if(!Array.isArray(p.weeks)){
     const n = Math.min(4, Math.max(1, parseInt(p.weekCount || p.weeks) || 4));
     const ds = (p.days||[]).map(d => ({id:d.id||uid(), name:d.name||"", location:d.location||"", split:d.split||"", kpi:d.kpi||"", duration:d.duration||"", exercises:d.exercises||[]}));
     const wk = {frequency:Math.max(1, ds.length||3), mode:"different", days: ds};
     p.weekCount = n; p.weeks = Array.from({length:n}, () => clone(wk));
-    delete p.days;
   }
   p.weekCount = Math.min(4, Math.max(1, parseInt(p.weekCount) || p.weeks.length || 1));
   if(!p.weeks.length) p.weeks.push({frequency:3, mode:"different", days:[]});
   while(p.weeks.length < p.weekCount) p.weeks.push(clone(p.weeks[p.weeks.length-1]));
+  p.weeks = p.weeks.slice(0, 4);
   p.weeks.forEach(w => {
     w.frequency = Math.min(7, Math.max(1, parseInt(w.frequency) || 1));
     w.mode = w.mode === "same" ? "same" : "different";
@@ -385,59 +402,109 @@ function normalizePlan(src){
     w.days.forEach(d => { d.exercises = d.exercises || []; });
     ensureDays(w);
   });
-  return p;
+  return {id:p.id, name:p.name, weekCount:p.weekCount, weeks:p.weeks, createdAt:p.createdAt || ""};
 }
-function programWeek(date){
-  if(!S.plan || !S.plan.startDate) return 1;
-  return Math.floor((monday(parse(date)) - monday(parse(S.plan.startDate))) / 864e5 / 7) + 1;
+// Accepts every earlier format. The old single program becomes "First program", scheduled from its start date.
+function normalizePlan(src){
+  const s = clone(src || {});
+  if(Array.isArray(s.programs)){
+    const programs = s.programs.map(p => normalizeProgram(p));
+    const ids = new Set(programs.map(p => p.id));
+    const schedule = (s.schedule||[]).filter(e => e && ids.has(e.programId) && e.start)
+      .map(e => ({id:e.id||uid(), programId:e.programId, start:ymd(monday(parse(e.start)))}));
+    return {v:2, client:Object.assign({goal:"", equipment:"", welcome:""}, s.client||{}), programs, schedule};
+  }
+  const prog = normalizeProgram(Object.assign({}, s, {id:"p1"}), "First program");
+  const start = ymd(monday(s.startDate ? parse(s.startDate) : new Date()));
+  return {v:2, client:{goal:s.goal||"", equipment:s.equipment||"", welcome:s.welcome||""}, programs:[prog], schedule:[{id:"s1", programId:"p1", start}]};
 }
+const progById = id => S.plan.programs.find(p => p.id === id) || null;
+function sortedSchedule(){ return S.plan.schedule.filter(e => progById(e.programId)).slice().sort((a,b) => a.start.localeCompare(b.start)); }
+function entryEnd(e){ const p = progById(e.programId); return ymd(addDays(parse(e.start), 7*p.weekCount - 1)); }
+// Which program and week a date falls in. The latest program started on or before that week wins.
 function weekInfo(date){
-  const n = S.plan.weekCount, pw = programWeek(date);
-  const idx = Math.min(n-1, Math.max(0, pw-1));
-  return {pw, idx, week:S.plan.weeks[idx], before:pw<1, after:pw>n};
+  const ws = ymd(monday(parse(date))), sch = sortedSchedule();
+  if(!sch.length) return {none:true, prog:null, week:null, idx:0, pw:0};
+  let entry = null; sch.forEach(e => { if(e.start <= ws) entry = e; });
+  if(!entry){ const e = sch[0], prog = progById(e.programId); return {entry:e, prog, idx:0, pw:weeksBetween(e.start, ws)+1, week:prog.weeks[0], before:true}; }
+  const prog = progById(entry.programId), pw = weeksBetween(entry.start, ws) + 1;
+  const after = pw > prog.weekCount, idx = Math.min(pw, prog.weekCount) - 1;
+  return {entry, prog, pw, idx, week:prog.weeks[idx], after};
 }
-function logWeekIdx(l){ return Number.isInteger(l.weekIdx) ? Math.min(l.weekIdx, S.plan.weeks.length-1) : weekInfo(l.date).idx; }
-function dayFor(l){ const w = S.plan.weeks[logWeekIdx(l)]; return w ? w.days.find(d => d.id === l.dayId) : null; }
-function hasProgram(){ return S.plan && S.plan.weeks.some(w => activeDays(w).some(d => d.exercises.length)); }
- 
-function suggestDay(date, wi){
-  const w = S.plan.weeks[wi], ds = activeDays(w); if(!ds.length) return null;
+// A logged day belongs to the program it was logged under, even if the schedule changes later.
+// Days logged before the library existed belong to the first program (id p1).
+function logProg(l){
+  if(l.progId) return progById(l.progId);
+  if(S.logs[l.date] && Number.isInteger(l.weekIdx) && progById("p1")) return progById("p1");
+  return weekInfo(l.date).prog;
+}
+function logWeekIdx(l){ const p = logProg(l); if(!p) return 0; return Number.isInteger(l.weekIdx) ? Math.min(l.weekIdx, p.weekCount-1) : weekInfo(l.date).idx; }
+function dayFor(l){ const p = logProg(l); if(!p) return null; const w = p.weeks[logWeekIdx(l)]; return w ? w.days.find(d => d.id === l.dayId) || null : null; }
+function targetText(ex){ return `${ex.sets||"–"} x ${ex.reps||"–"}${ex.noWeight ? " · no weight" : (ex.lbs ? " @ "+ex.lbs : "")}`; }
+function dayMetaOf(d){ return d ? {name:d.name||"Workout", location:d.location||"", split:d.split||"", kpi:d.kpi||"", duration:d.duration||""} : null; }
+
+// The exercises to show for a day. A day that's already logged keeps what was planned when it was logged,
+// so later edits to a program never rewrite past workouts. Current and future weeks also pick up new exercises.
+function exList(D){
+  const saved = S.logs[D.date], day = dayFor(D), out = [], seen = new Set();
+  const live = ymd(monday(parse(D.date))) >= ymd(monday(new Date()));
+  const fromDay = ex => ({id:ex.id, name:ex.name, target:targetText(ex), sets:ex.sets, reps:ex.reps, lbs:ex.lbs, noWeight:!!ex.noWeight, notes:ex.notes||""});
+  if(saved && saved.exInfo && saved.dayId === D.dayId && Object.keys(saved.exInfo).length){
+    Object.entries(saved.exInfo).forEach(([id,x]) => {
+      const cur = day && day.exercises.find(e => e.id === id);
+      out.push(Object.assign({id, name:x.name, target:x.target, noWeight:!!x.noWeight, notes:x.notes||""}, cur && live ? fromDay(cur) : {}));
+      seen.add(id);
+    });
+    if(live && day) day.exercises.forEach(ex => { if(!seen.has(ex.id)){ out.push(fromDay(ex)); seen.add(ex.id); } });
+  } else if(day){ day.exercises.forEach(ex => { out.push(fromDay(ex)); seen.add(ex.id); }); }
+  Object.keys(D.entries||{}).forEach(id => { if(!seen.has(id) && D.entries[id].length) out.push({id, name:"Exercise", target:"", noWeight:false, notes:""}); });
+  return out;
+}
+function hasProgram(){ return S.plan.programs.length > 0 && S.plan.schedule.length > 0; }
+
+function suggestDay(date, info){
+  const w = info.week, ds = activeDays(w); if(!ds.length) return null;
   if(w.mode === "same") return ds[0].id;
   const ws = ymd(monday(parse(date)));
-  const prev = Object.values(S.logs).filter(l => l.date < date && l.date >= ws && logWeekIdx(l) === wi && l.dayId)
+  const prev = Object.values(S.logs).filter(l => l.date < date && l.date >= ws && l.dayId && ds.some(d => d.id === l.dayId))
     .sort((a,b) => b.date.localeCompare(a.date))[0];
   if(!prev) return ds[0].id;
   const i = ds.findIndex(d => d.id === prev.dayId);
   return ds[(i+1) % ds.length].id;
 }
- 
+
 function blankSets(ex){ const n = Math.max(1, Number(ex.sets)||1); return Array.from({length:n}, () => ({reps:"", lbs:"", done:false})); }
- 
+
 function loadDraft(date, keepDay){
   const existing = S.logs[date];
   if(existing){
     S.draft = clone(existing);
     S.draft.entries = S.draft.entries || {};
-    S.draft.weekIdx = logWeekIdx(existing);
+    const p = logProg(existing); if(p){ S.draft.progId = p.id; S.draft.weekIdx = logWeekIdx(existing); }
   } else {
-    const wi = weekInfo(date).idx;
-    const dayId = (keepDay && S.draft && S.draftDate === date && S.draft.dayId) || suggestDay(date, wi);
-    S.draft = { date, weekIdx:wi, dayId, entries:{}, notes:"", coachFeedback:"", complete:false };
+    const info = weekInfo(date);
+    const dayId = (keepDay && S.draft && S.draftDate === date && S.draft.dayId) || (info.week ? suggestDay(date, info) : null);
+    S.draft = { date, progId: info.prog ? info.prog.id : null, weekIdx:info.idx, dayId, entries:{}, notes:"", coachFeedback:"", complete:false };
   }
-  const day = dayFor(S.draft);
-  if(day) day.exercises.forEach(ex => { if(!S.draft.entries[ex.id]) S.draft.entries[ex.id] = blankSets(ex); });
-  S.draftDate = date; S.dirty = false;
+  S.draftDate = date;
+  exList(S.draft).forEach(ex => { if(!S.draft.entries[ex.id] && ex.sets !== undefined) S.draft.entries[ex.id] = blankSets(ex); });
+  S.dirty = false;
 }
- 
+
 let saveTimer = null;
 function markDirty(){ S.dirty = true; S.status = "Unsaved changes"; paintStatus(); clearTimeout(saveTimer); saveTimer = setTimeout(saveLog, 1200); }
 async function saveLog(){
   clearTimeout(saveTimer);
   if(!S.draft || !S.dirty) return;
   const body = clone(S.draft); body.updatedAt = new Date().toISOString();
-  // snapshot what the coach prescribed, so the log still reads right if the plan changes later
-  const day = dayFor(body); body.exInfo = {};
-  if(day){ body.dayName = day.name; day.exercises.forEach(ex => { body.exInfo[ex.id] = {name:ex.name, noWeight:!!ex.noWeight, target:`${ex.sets||"–"} x ${ex.reps||"–"}${ex.noWeight ? " · no weight" : (ex.lbs ? " @ "+ex.lbs : "")}`}; }); }
+  // snapshot what the coach prescribed, so this day still reads right after the program changes
+  const prog = logProg(body), day = dayFor(body), list = exList(body);
+  body.exInfo = {};
+  list.forEach(ex => { body.exInfo[ex.id] = {name:ex.name, noWeight:!!ex.noWeight, target:ex.target, notes:ex.notes||""}; });
+  const prevMeta = S.logs[body.date] && S.logs[body.date].dayId === body.dayId ? S.logs[body.date].dayMeta : null;
+  body.dayMeta = dayMetaOf(day) || prevMeta || null;
+  body.dayName = body.dayMeta ? body.dayMeta.name : (body.dayName || "");
+  if(prog){ body.progId = prog.id; body.progName = prog.name; body.weekNo = logWeekIdx(body) + 1; }
   S.logs[body.date] = body; persist();
   S.dirty = false; S.status = "Saved"; paintStatus();
   Sync.queue({type:"log", date:body.date, data:body});
@@ -449,22 +516,30 @@ async function deleteLog(){
   Sync.queue({type:"deleteLog", date:S.date});
   S.draftDate = null; S.confirmDel = false; loadDraft(S.date); S.status = "Workout removed"; render();
 }
-async function savePlan(){
-  if(!S.planDraft) return;
-  const p = normalizePlan(S.planDraft); p.weeks = p.weeks.slice(0, p.weekCount);
-  S.plan = p; persist();
+function commitPlan(msg){
+  S.plan = normalizePlan(S.plan); persist();
   Sync.queue({type:"program", data:S.plan});
-  S.planDirty = false; S.planDraft = null; S.planStatus = "Program saved"; render();
+  if(S.draftDate && !S.dirty && !S.logs[S.draftDate]) S.draftDate = null;
+  if(msg) S.planStatus = msg;
+  render();
+}
+function saveProgram(){
+  if(!S.planDraft) return;
+  const p = normalizeProgram(S.planDraft); p.weeks = p.weeks.slice(0, p.weekCount);
+  if(!p.name.trim()) p.name = "Untitled program";
+  const i = S.plan.programs.findIndex(x => x.id === p.id);
+  if(i >= 0) S.plan.programs[i] = p; else S.plan.programs.push(p);
+  S.planDirty = false; S.planDraft = null; S.editId = null; S.leaveWarn = false;
+  commitPlan(`Saved “${p.name}”`);
 }
 /* ---------- header ---------- */
 function paintHeader(){
   const sl = Sync.label(); const pill = $("#syncpill"); pill.className = "sync " + sl.cls; pill.textContent = sl.text;
-  const wkDate = ymd(S.weekStart);
-  const pw = programWeek(wkDate), total = S.plan ? S.plan.weekCount : 4;
+  const wkDate = ymd(S.weekStart), info = weekInfo(wkDate);
   const end = addDays(S.weekStart,6);
   const range = `${fmtShort(wkDate)} – ${fmtShort(ymd(end))}`;
   const done = [...Array(7)].map((_,i)=>S.logs[ymd(addDays(S.weekStart,i))]).filter(l=>l && l.complete).length;
-  const wl = pw < 1 ? "Before program start · " : pw > total ? "After program end · " : `<b>Week ${pw}</b> of ${total} · `;
+  const wl = info.none ? "No program · " : info.before ? `Before ${esc(info.prog.name)} · ` : info.after ? `${esc(info.prog.name)} ended · ` : `<b>${esc(info.prog.name)}</b> · Wk ${info.pw}/${info.prog.weekCount} · `;
   $("#wklabel").innerHTML = wl + `${range} · <b>${done}</b> done`;
   const today = ymd(new Date());
   $("#strip").innerHTML = [...Array(7)].map((_,i)=>{
@@ -475,7 +550,7 @@ function paintHeader(){
   ["log","history","program","settings"].forEach(t => $("#tab-"+t).setAttribute("aria-selected", String(S.tab===t)));
   $("#reportbtn").setAttribute("aria-pressed", String(S.tab==="report"));
 }
- 
+
 /* ---------- views ---------- */
 function render(){
   paintHeader();
@@ -489,52 +564,58 @@ function render(){
   if(S.tab==="report") html += viewReport();
   m.innerHTML = html;
 }
- 
+
 function viewLog(){
-  if(!hasProgram()) return `<div class="empty">No program yet. Your coach adds the plan in the <b>Program</b> tab.</div>`;
   if(S.draftDate !== S.date) loadDraft(S.date);
-  const D = S.draft, wi = D.weekIdx, week = S.plan.weeks[wi], day = dayFor(D), info = weekInfo(S.date);
-  const ds = activeDays(week);
+  const D = S.draft, saved = S.logs[S.date], info = weekInfo(S.date);
+  if(info.none && !saved) return `<div class="empty">No program is scheduled yet. Your coach assigns one in the <b>Program</b> tab.</div>`;
+  const prog = logProg(D), wi = logWeekIdx(D), week = prog ? prog.weeks[wi] : null;
+  const day = dayFor(D), meta = (saved && saved.dayId === D.dayId && saved.dayMeta && ymd(monday(parse(S.date))) < ymd(monday(new Date()))) ? saved.dayMeta : (dayMetaOf(day) || (saved && saved.dayMeta));
+  const live = ymd(monday(parse(S.date))) >= ymd(monday(new Date()));
+  const ds = (saved && !live) ? [] : activeDays(week);
   const opts = ds.map(d => `<option value="${esc(d.id)}" ${d.id===D.dayId?"selected":""}>${esc(d.name || "Workout")}${d.location?" · "+esc(d.location):""}</option>`).join("");
-  const freq = week.mode==="same" ? `Same workout ${week.frequency}x this week` : `${week.frequency} days this week`;
+  const freq = week && !saved ? (week.mode==="same" ? `Same workout ${week.frequency}x this week` : `${week.frequency} days this week`) : "";
+  const progName = (saved && saved.progName && !prog) ? saved.progName : (prog ? prog.name : "");
   let h = "";
-  if(!S.logs[S.date] && (info.before || info.after)) h += `<div class="banner">${info.before ? "This date is before the program starts" : `This date is after the ${S.plan.weekCount}-week program`}, so it shows the Week ${wi+1} plan.</div>`;
+  if(!saved && info.before) h += `<div class="banner">${esc(info.prog.name)} starts ${esc(fmtShort(info.entry.start))}. This shows its Week 1 plan.</div>`;
+  if(!saved && info.after) h += `<div class="banner">${esc(info.prog.name)} ended ${esc(fmtShort(entryEnd(info.entry)))}, so this shows its last week. Your coach can schedule the next program in the <b>Program</b> tab.</div>`;
   h += `<section class="dayhead">
     <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
-      <span class="lbl">Week ${wi+1} · ${esc(fmtLong(S.date))}</span>
-      <h2 class="sec">${day ? esc(day.name || "Workout") : "Pick a workout"}${day && day.location ? ` <span style="color:var(--muted)">· ${esc(day.location)}</span>`:""}</h2>
-      ${day ? `<div class="chips">${day.split?`<span class="chip">${esc(day.split)}</span>`:""}${day.kpi?`<span class="chip">KPI: ${esc(day.kpi)}</span>`:""}${day.duration?`<span class="chip">${esc(day.duration)}</span>`:""}<span class="chip">${esc(freq)}</span>${D.complete?`<span class="chip ok">Completed</span>`:""}</div>`:""}
+      <span class="lbl">${progName ? esc(progName)+" · " : ""}Week ${prog ? wi+1 : (D.weekNo || wi+1)} · ${esc(fmtLong(S.date))}</span>
+      <h2 class="sec">${meta ? esc(meta.name || "Workout") : "Pick a workout"}${meta && meta.location ? ` <span style="color:var(--muted)">· ${esc(meta.location)}</span>`:""}</h2>
+      ${meta ? `<div class="chips">${meta.split?`<span class="chip">${esc(meta.split)}</span>`:""}${meta.kpi?`<span class="chip">KPI: ${esc(meta.kpi)}</span>`:""}${meta.duration?`<span class="chip">${esc(meta.duration)}</span>`:""}${freq?`<span class="chip">${esc(freq)}</span>`:""}${D.complete?`<span class="chip ok">Completed</span>`:""}</div>`:""}
     </div>
     ${ds.length > 1 ? `<div class="field" style="max-width:260px;width:100%"><label class="lbl" for="daysel">Workout</label><select id="daysel">${opts}</select></div>` : ""}
   </section>`;
-  if(day){
-    if(!day.exercises.length) h += `<div class="empty">Your coach hasn't added exercises to ${esc(day.name || "this workout")} yet. They go in the <b>Program</b> tab.</div>`;
-    day.exercises.forEach(ex => {
-      const sets = D.entries[ex.id] || [];
-      const nw = !!ex.noWeight;
-      const doneCount = sets.filter(s=>s.done).length;
-      h += `<article class="ex">
-        <div class="exhead">
-          <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
-            <div class="exname">${esc(ex.name)}</div>
-            <div class="target">Target <b>${esc(ex.sets||"–")} sets</b> × <b>${esc(ex.reps||"–")}</b>${nw ? " · <b>No weight</b>" : (ex.lbs?` · <b>${esc(ex.lbs)}</b>`:"")}</div>
-          </div>
-          <span class="chip ${doneCount && doneCount>=sets.length?"ok":""}">${doneCount}/${sets.length} sets</span>
+  const list = exList(D);
+  if(!list.length) h += `<div class="empty">No exercises in this workout yet. Your coach adds them in the <b>Program</b> tab.</div>`;
+  list.forEach(ex => {
+    const sets = D.entries[ex.id] || [];
+    const nw = !!ex.noWeight;
+    const doneCount = sets.filter(s=>s.done).length;
+    const repsHint = ex.reps || String(ex.target||"").replace(/^\s*\S+\s*x\s*/,"").split(/ @ | · /)[0];
+    const lbsHint = String(ex.lbs || (String(ex.target||"").split(" @ ")[1] || "")).replace(/[^0-9.]/g,"");
+    h += `<article class="ex">
+      <div class="exhead">
+        <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div class="exname">${esc(ex.name)}</div>
+          <div class="target">Target <b>${esc(ex.target || "–")}</b></div>
         </div>
-        ${ex.notes?`<div class="coachnote"><b>Coach:</b> ${esc(ex.notes)}</div>`:""}
-        <div class="sets">
-          <div class="setrow hdr ${nw?"nw":""}"><span>Set</span><span>Reps / time</span>${nw?"":"<span>Lbs</span>"}<span></span></div>
-          ${sets.map((s,i)=>`<div class="setrow ${nw?"nw":""}">
-            <span class="n">${i+1}</span>
-            <input id="r-${esc(ex.id)}-${i}" inputmode="text" data-ex="${esc(ex.id)}" data-i="${i}" data-k="reps" value="${esc(s.reps)}" placeholder="${esc(ex.reps||"")}" aria-label="Set ${i+1} reps">
-            ${nw ? "" : `<input id="l-${esc(ex.id)}-${i}" inputmode="decimal" data-ex="${esc(ex.id)}" data-i="${i}" data-k="lbs" value="${esc(s.lbs)}" placeholder="${esc(String(ex.lbs||"").replace(/[^0-9.]/g,""))}" aria-label="Set ${i+1} pounds">`}
-            <button class="tick" data-tick="${esc(ex.id)}" data-i="${i}" aria-pressed="${!!s.done}" aria-label="Mark set ${i+1} done">${CHECK}</button>
-          </div>`).join("")}
-          <div class="setactions"><button class="link" data-addset="${esc(ex.id)}">+ Add set</button>${sets.length>1?`<button class="link danger" data-rmset="${esc(ex.id)}">Remove last set</button>`:""}</div>
-        </div>
-      </article>`;
-    });
-  }
+        <span class="chip ${doneCount && doneCount>=sets.length?"ok":""}">${doneCount}/${sets.length} sets</span>
+      </div>
+      ${ex.notes?`<div class="coachnote"><b>Coach:</b> ${esc(ex.notes)}</div>`:""}
+      <div class="sets">
+        <div class="setrow hdr ${nw?"nw":""}"><span>Set</span><span>Reps / time</span>${nw?"":"<span>Lbs</span>"}<span></span></div>
+        ${sets.map((s,i)=>`<div class="setrow ${nw?"nw":""}">
+          <span class="n">${i+1}</span>
+          <input id="r-${esc(ex.id)}-${i}" inputmode="text" data-ex="${esc(ex.id)}" data-i="${i}" data-k="reps" value="${esc(s.reps)}" placeholder="${esc(repsHint)}" aria-label="Set ${i+1} reps">
+          ${nw ? "" : `<input id="l-${esc(ex.id)}-${i}" inputmode="decimal" data-ex="${esc(ex.id)}" data-i="${i}" data-k="lbs" value="${esc(s.lbs)}" placeholder="${esc(lbsHint)}" aria-label="Set ${i+1} pounds">`}
+          <button class="tick" data-tick="${esc(ex.id)}" data-i="${i}" aria-pressed="${!!s.done}" aria-label="Mark set ${i+1} done">${CHECK}</button>
+        </div>`).join("")}
+        <div class="setactions"><button class="link" data-addset="${esc(ex.id)}">+ Add set</button>${sets.length>1?`<button class="link danger" data-rmset="${esc(ex.id)}">Remove last set</button>`:""}</div>
+      </div>
+    </article>`;
+  });
   h += `<section class="panel">
       <label class="lbl" for="notes">My notes for the coach</label>
       <textarea id="notes" placeholder="How did it feel? Any pain, questions, or swaps you made?">${esc(D.notes)}</textarea>
@@ -543,7 +624,7 @@ function viewLog(){
       <label class="lbl" for="coachfb">Coach feedback</label>
       <textarea id="coachfb" placeholder="Coach: leave feedback on this workout here.">${esc(D.coachFeedback)}</textarea>
     </section>`;
-  const exists = !!S.logs[S.date];
+  const exists = !!saved;
   h += `<div class="bar">
     <span class="status" id="status">${esc(S.status || (exists ? "Saved" : "Not logged yet"))}</span>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -554,13 +635,15 @@ function viewLog(){
   return h;
 }
 function paintStatus(){ const el = $("#status"); if(el) el.textContent = S.status; }
- 
+
 function summarize(l){
-  const day = dayFor(l);
   let sets=0, done=0;
   Object.values(l.entries||{}).forEach(a => a.forEach(s => { sets++; if(s.done) done++; }));
-  return { name: `Week ${logWeekIdx(l)+1} · ` + ((day && day.name) || l.dayName || "Workout"), done, sets };
+  const p = logProg(l), dm = l.dayMeta || dayMetaOf(dayFor(l));
+  const pn = l.progName || (p && p.name) || "";
+  return { name: `${pn ? pn+" · " : ""}Week ${l.weekNo || (logWeekIdx(l)+1)} · ` + ((dm && dm.name) || l.dayName || "Workout"), done, sets };
 }
+
 /* ---------- weekly report ---------- */
 const CLIENT_NAME = "Tolu";
 function setsLine(sets, nw){
@@ -575,30 +658,22 @@ function setsLine(sets, nw){
 }
 function weekReport(ws){
   const start = ymd(ws), end = ymd(addDays(ws,6));
-  const info = weekInfo(start), total = S.plan.weekCount;
-  const weekLabel = info.before ? "Before program start" : info.after ? "After program end" : `Week ${info.pw} of ${total}`;
-  const planned = (info.before || info.after) ? null : info.week.frequency;
+  const info = weekInfo(start);
+  const weekLabel = info.none ? "No program scheduled" : info.before ? `Before ${info.prog.name}` : info.after ? `After ${info.prog.name}` : `${info.prog.name} · Week ${info.pw} of ${info.prog.weekCount}`;
+  const planned = (info.none || info.before || info.after) ? null : info.week.frequency;
   const days = []; let completed = 0, setsDone = 0, setsTotal = 0;
   for(let i=0;i<7;i++){
     const date = ymd(addDays(ws,i)), l = S.logs[date];
     if(!l) continue;
-    const day = dayFor(l), exInfo = l.exInfo || {};
-    const order = day ? day.exercises.map(e => e.id) : [];
-    Object.keys(l.entries||{}).forEach(id => { if(!order.includes(id)) order.push(id); });
-    const exercises = order.filter(id => l.entries && l.entries[id]).map(id => {
-      const ex = day && day.exercises.find(e => e.id === id), snap = exInfo[id];
-      const nw = snap ? !!snap.noWeight : !!(ex && ex.noWeight);
-      const sets = l.entries[id], done = sets.filter(s => s.done).length;
+    const m = l.dayMeta || dayMetaOf(dayFor(l)) || {name:l.dayName||"Workout"};
+    const exercises = exList(l).filter(ex => l.entries && l.entries[ex.id]).map(ex => {
+      const sets = l.entries[ex.id], done = sets.filter(s => s.done).length;
       setsDone += done; setsTotal += sets.length;
-      return {
-        name: (snap && snap.name) || (ex && ex.name) || "Exercise",
-        target: (snap && snap.target) || (ex ? `${ex.sets||"–"} x ${ex.reps||"–"}${nw ? " · no weight" : (ex.lbs ? " @ "+ex.lbs : "")}` : ""),
-        result: setsLine(sets, nw), done, total: sets.length
-      };
+      return {name:ex.name || "Exercise", target:ex.target || "", result:setsLine(sets, !!ex.noWeight), done, total:sets.length};
     });
     if(l.complete) completed++;
-    days.push({date, complete:!!l.complete, name:(day && day.name) || l.dayName || "Workout",
-      meta:[day && day.location, day && day.split, day && day.kpi ? "KPI: "+day.kpi : "", day && day.duration].filter(Boolean),
+    days.push({date, complete:!!l.complete, name:m.name || "Workout",
+      meta:[m.location, m.split, m.kpi ? "KPI: "+m.kpi : "", m.duration].filter(Boolean),
       exercises, notes:l.notes||"", coachFeedback:l.coachFeedback||""});
   }
   return {start, end, range:`${fmtShort(start)} – ${fmtShort(end)}`, weekLabel, planned, completed, setsDone, setsTotal, days,
@@ -721,7 +796,7 @@ async function shareReportPdf(){
   rStatus("Making PDF…");
   let jsPDF; try{ jsPDF = await loadJsPDF(); }catch(e){ rStatus("Couldn't load the PDF maker. Check your connection, or use Share as text."); return; }
   const R = weekReport(S.weekStart), doc = buildPdf(jsPDF, R);
-  const name = `Fit-4-Me_${R.weekLabel.replace(/\s+/g,"")}_${R.start}.pdf`.replace(/[^\w.-]/g,"");
+  const name = `Fit-4-Me_Week-of_${R.start}.pdf`;
   const blob = doc.output("blob"), file = new File([blob], name, {type:"application/pdf"});
   if(navigator.canShare && navigator.canShare({files:[file]})){
     try{ await navigator.share({files:[file], title:R.title}); rStatus("Shared"); return; }
@@ -732,7 +807,7 @@ async function shareReportPdf(){
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   rStatus(`Downloaded ${name}`);
 }
- 
+
 function viewHistory(){
   const all = Object.values(S.logs).sort((a,b)=>b.date.localeCompare(a.date));
   let h = `<section class="panel"><div class="dayhead"><h2 class="sec">Consistency</h2><span class="lbl">last 6 weeks</span></div><div class="weeks">`;
@@ -744,10 +819,10 @@ function viewHistory(){
     h += `<div class="weekrow"><span class="lbl">${fmtShort(ymd(ws))} · ${cnt}</span>${[...Array(7)].map((_,i)=>{const k=ymd(addDays(ws,i)),l=S.logs[k];return `<span class="cell ${l?"has":""} ${l&&l.complete?"complete":""}" title="${esc(fmtLong(k))}">${l&&l.complete?"✓":""}</span>`}).join("")}</div>`;
   }
   h += `</div></section>`;
- 
+
   // progress per exercise (ids carry across weeks when the coach copies a week)
   const exMap = {};
-  S.plan.weeks.forEach(w => w.days.forEach(d => d.exercises.forEach(ex => { exMap[ex.id] = {name:ex.name, noWeight:!!ex.noWeight}; })));
+  S.plan.programs.forEach(p => p.weeks.forEach(w => w.days.forEach(d => d.exercises.forEach(ex => { exMap[ex.id] = {name:ex.name, noWeight:!!ex.noWeight}; }))));
   all.forEach(l => Object.entries(l.exInfo||{}).forEach(([id,x]) => { if(!exMap[id]) exMap[id] = x; }));
   const series = {};
   all.slice().reverse().forEach(l => Object.entries(l.entries||{}).forEach(([id,arr]) => {
@@ -771,7 +846,7 @@ function viewHistory(){
       <div class="v">Last (${esc(fmtShort(last.date))}): ${esc(last.line)} reps${last.nw ? " · no weight" : (last.lbs?` @ ${last.lbs} lbs`:"")} · ${s.length} session${s.length>1?"s":""}</div></div>`;
   }).join("")}</div>`;
   h += `</section>`;
- 
+
   h += `<section style="display:flex;flex-direction:column;gap:10px"><h2 class="sec">All workouts</h2>`;
   if(!all.length) h += `<div class="empty">No workouts logged yet. Pick a day above and start with the Log tab.</div>`;
   else h += `<div class="loglist">${all.map(l=>{const s=summarize(l);return `<button class="logitem" data-open="${esc(l.date)}">
@@ -780,25 +855,97 @@ function viewHistory(){
   h += `</section>`;
   return h;
 }
- 
+
 function selectHtml(id, attrs, options, val){
   const list = val && !options.includes(val) ? [val, ...options] : options;
   return `<select id="${id}" ${attrs}><option value="">Choose…</option>${list.map(o => `<option value="${esc(o)}" ${o===val?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
 }
-function viewProgram(){
-  if(!S.planDraft) S.planDraft = normalizePlan(S.plan);
+function progSummary(p){
+  const f = p.weeks.slice(0, p.weekCount).map(w => w.frequency), lo = Math.min(...f), hi = Math.max(...f);
+  const ex = new Set(); p.weeks.slice(0,p.weekCount).forEach(w => activeDays(w).forEach(d => d.exercises.forEach(e => ex.add(e.name))));
+  return `${p.weekCount} week${p.weekCount>1?"s":""} · ${lo===hi ? lo : lo+"–"+hi} day${hi>1?"s":""}/week · ${ex.size} exercise${ex.size===1?"":"s"}`;
+}
+function nextFreeMonday(){
+  const today = ymd(monday(new Date())), info = weekInfo(today);
+  if(info.none) return today;
+  const last = sortedSchedule().pop(), lastEnd = ymd(addDays(parse(entryEnd(last)), 1));
+  return lastEnd > today ? lastEnd : today;
+}
+function viewProgram(){ return S.editId ? viewProgramEditor() : viewProgramHome(); }
+
+function viewProgramHome(){
+  const today = ymd(new Date()), cur = weekInfo(today);
+  const sch = sortedSchedule();
+  const startVal = S.assignStart || nextFreeMonday();
+  const startMon = ymd(monday(parse(startVal)));
+  let h = "";
+  if(S.planStatus) h += `<div class="banner ok">${esc(S.planStatus)}</div>`;
+  // schedule
+  h += `<section class="panel">
+    <div class="dayhead"><h2 class="sec">Schedule</h2>
+      <span class="lbl">${cur.none ? "Nothing scheduled" : cur.before ? `Next: ${esc(cur.prog.name)}` : cur.after ? "Between programs" : `Now: ${esc(cur.prog.name)} · Week ${cur.pw}`}</span></div>
+    ${sch.length ? `<ul class="sched">${sch.slice().reverse().map(e => {
+      const p = progById(e.programId), end = entryEnd(e);
+      const st = end < today ? "Past" : e.start > today ? "Upcoming" : "Current";
+      const confirm = S.confirmRmSched === e.id;
+      return `<li class="${st.toLowerCase()}">
+        <div style="min-width:0"><div class="sn">${esc(p.name)}</div><div class="sd">${esc(fmtShort(e.start))} – ${esc(fmtShort(end))} · ${p.weekCount} wk</div></div>
+        <div class="sa"><span class="chip ${st==="Current"?"ok":""}">${st}</span>
+        ${confirm ? `<button class="link danger" data-rmsched-yes="${esc(e.id)}">Remove</button><button class="link" data-rmsched-no="1">Keep</button>` : `<button class="link danger" data-rmsched="${esc(e.id)}" aria-label="Remove ${esc(p.name)} starting ${esc(fmtShort(e.start))} from the schedule">Remove</button>`}</div>
+      </li>`; }).join("")}</ul>` : `<div class="empty" style="padding:14px">No programs scheduled. Pick one below to start.</div>`}
+    <div class="assign">
+      <span class="lbl">Schedule a program</span>
+      ${S.plan.programs.length ? `<div class="grid2">
+        <div class="field"><label class="lbl" for="as-prog">Program</label><select id="as-prog">${S.plan.programs.map(p => `<option value="${esc(p.id)}" ${p.id===S.assignProg?"selected":""}>${esc(p.name)} (${p.weekCount} wk)</option>`).join("")}</select></div>
+        <div class="field"><label class="lbl" for="as-start">Starting the week of</label><input id="as-start" type="date" value="${esc(startVal)}"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" id="assign">Schedule it</button>
+        <span class="status">Starts Monday ${esc(fmtShort(startMon))}. Weeks already logged keep their workouts.</span></div>` : `<div class="status">Create a program first.</div>`}
+    </div>
+  </section>`;
+  // library
+  h += `<section class="panel">
+    <div class="dayhead"><h2 class="sec">Program library</h2><button class="btn ghost" id="newprog">+ New program</button></div>
+    <p class="status" style="margin:0;max-width:65ch">Programs stay here for good. Schedule one as many times as you like, or duplicate it to make a variation.</p>
+    <div class="lib">${S.plan.programs.map(p => {
+      const uses = sch.filter(e => e.programId === p.id);
+      const confirm = S.confirmDelProg === p.id;
+      return `<article class="libcard">
+        <div class="ln">${esc(p.name)}</div>
+        <div class="lm">${esc(progSummary(p))}</div>
+        <div class="lm">${uses.length ? "Scheduled: " + uses.map(e => esc(fmtShort(e.start))).join(", ") : "Not scheduled"}</div>
+        <div class="la">
+          <button class="link" data-editprog="${esc(p.id)}">Open</button>
+          <button class="link" data-dupprog="${esc(p.id)}">Duplicate</button>
+          ${uses.length ? "" : (confirm ? `<button class="link danger" data-delprog-yes="${esc(p.id)}">Delete for good</button><button class="link" data-delprog-no="1">Keep</button>` : `<button class="link danger" data-delprog="${esc(p.id)}">Delete</button>`)}
+        </div>
+      </article>`; }).join("") || `<div class="empty" style="padding:14px">No programs yet.</div>`}</div>
+  </section>`;
+  // client details
+  const c = S.plan.client;
+  h += `<section class="panel">
+    <div class="dayhead"><h2 class="sec">Client details</h2><button class="link" id="toggleclient" aria-expanded="${!!S.openClient}">${S.openClient ? "Hide" : "Show"}</button></div>
+    ${S.openClient ? `<div class="field"><label class="lbl" for="c-goal">Goal</label><input id="c-goal" data-c="goal" value="${esc(c.goal)}"></div>
+    <div class="field"><label class="lbl" for="c-eq">Equipment</label><input id="c-eq" data-c="equipment" value="${esc(c.equipment)}"></div>
+    <div class="field"><label class="lbl" for="c-wel">Coach's instructions</label><textarea id="c-wel" data-c="welcome">${esc(c.welcome)}</textarea></div>
+    <span class="status">Each box saves when you tap out of it.</span>` : `<span class="status">Goal, equipment and coach's instructions.</span>`}
+  </section>`;
+  return h;
+}
+
+function viewProgramEditor(){
+  if(!S.planDraft){ const p = progById(S.editId); if(!p){ S.editId = null; return viewProgramHome(); } S.planDraft = clone(p); }
   const P = S.planDraft;
   S.progWeek = Math.min(Math.max(0, S.progWeek||0), P.weekCount-1);
   const wi = S.progWeek, W = P.weeks[wi];
-  let h = `<section class="panel">
-    <h2 class="sec">Program details</h2>
+  const uses = sortedSchedule().filter(e => e.programId === P.id);
+  let h = `<div><button class="link" id="backlib">‹ All programs</button></div>
+  <section class="panel">
     <div class="grid2">
-      <div class="field" style="grid-column:1/-1"><label class="lbl" for="p-goal">Goal</label><input id="p-goal" data-p="goal" value="${esc(P.goal)}"></div>
-      <div class="field"><label class="lbl" for="p-start">Program start (week 1)</label><input id="p-start" type="date" data-p="startDate" value="${esc(P.startDate)}"></div>
+      <div class="field" style="grid-column:1/-1"><label class="lbl" for="p-name">Program name</label><input id="p-name" data-p="name" value="${esc(P.name)}" placeholder="e.g. Foundation, Strength block"></div>
       <div class="field"><label class="lbl" for="p-weeks">Program length</label><select id="p-weeks">${[1,2,3,4].map(n=>`<option value="${n}" ${n===P.weekCount?"selected":""}>${n} week${n>1?"s":""}</option>`).join("")}</select></div>
-      <div class="field" style="grid-column:1/-1"><label class="lbl" for="p-eq">Equipment</label><input id="p-eq" data-p="equipment" value="${esc(P.equipment)}"></div>
     </div>
-    <div class="field"><label class="lbl" for="p-wel">Coach's instructions</label><textarea id="p-wel" data-p="welcome">${esc(P.welcome)}</textarea></div>
+    ${uses.length ? `<p class="status" style="margin:0;max-width:65ch">Scheduled ${uses.map(e=>esc(fmtShort(e.start))).join(", ")}. Changes apply to every time it's scheduled. Days already logged keep what was planned then. To keep this version as it is, go back and use Duplicate instead.</p>` : ""}
   </section>
   <nav class="weektabs" aria-label="Program weeks">${P.weeks.slice(0,P.weekCount).map((w,i)=>`<button data-pw="${i}" aria-pressed="${i===wi}">Week ${i+1}</button>`).join("")}</nav>
   <section class="panel">
@@ -838,11 +985,12 @@ function viewProgram(){
       <div><button class="link" data-addex="${di}">+ Add exercise</button></div>
     </section>`;
   });
-  h += `<div class="bar"><span class="status">${esc(S.planDirty ? "Unsaved program changes" : (S.planStatus||"Up to date"))}</span>
-  <div style="display:flex;gap:8px">${S.planDirty?`<button class="btn ghost" id="plancancel">Discard</button>`:""}<button class="btn" id="plansave" ${S.planDirty?"":"disabled"}>Save program</button></div></div>`;
+  const isNew = !progById(P.id);
+  h += `<div class="bar"><span class="status">${esc(S.leaveWarn ? "Save or discard your changes first" : S.planDirty || isNew ? "Unsaved program changes" : "Up to date")}</span>
+  <div style="display:flex;gap:8px">${S.planDirty || isNew ?`<button class="btn ghost" id="plancancel">Discard</button>`:""}<button class="btn" id="plansave" ${S.planDirty || isNew?"":"disabled"}>Save program</button></div></div>`;
   return h;
 }
- 
+
 function viewSettings(){
   const c = Sync.cfg, connected = Sync.configured() && Sync.state !== "badkey";
   const appLink = location.origin + location.pathname;
@@ -881,17 +1029,20 @@ function viewSettings(){
     </ol></section>`;
   return h + `
   <section class="panel"><h2 class="sec">Program info</h2>
-    <div><span class="lbl">Goal</span><div>${esc(S.plan && S.plan.goal)}</div></div>
-    <div><span class="lbl">Equipment</span><div>${esc(S.plan && S.plan.equipment)}</div></div>
-    <div><span class="lbl">Coach's instructions</span><div style="max-width:65ch">${esc(S.plan && S.plan.welcome)}</div></div>
+    <div><span class="lbl">Goal</span><div>${esc(S.plan.client.goal)}</div></div>
+    <div><span class="lbl">Equipment</span><div>${esc(S.plan.client.equipment)}</div></div>
+    <div><span class="lbl">Coach's instructions</span><div style="max-width:65ch">${esc(S.plan.client.welcome)}</div></div>
   </section>`;
 }
- 
+
 /* ---------- events ---------- */
 function planChanged(rerender){
+  S.leaveWarn = false;
   if(rerender){ S.planDirty = true; render(); return; }
   if(!S.planDirty){ S.planDirty = true; const st = document.querySelector(".bar .status"); if(st) st.textContent="Unsaved program changes"; const b=$("#plansave"); if(b) b.disabled=false; }
 }
+function openEditor(p){ S.editId = p.id; S.planDraft = clone(p); S.progWeek = 0; S.planDirty = false; S.planStatus = ""; S.leaveWarn = false; render(); window.scrollTo(0,0); }
+function leaveEditor(){ S.editId = null; S.planDraft = null; S.planDirty = false; S.leaveWarn = false; render(); window.scrollTo(0,0); }
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if(!t) return;
   if(t.id==="syncpill"){ if(Sync.configured() && Sync.state!=="badkey") Sync.pull(); else { S.tab="settings"; render(); } return; }
@@ -907,39 +1058,66 @@ document.addEventListener("click", e => {
   if(t.id==="prevwk"||t.id==="nextwk"){ S.weekStart = addDays(S.weekStart, t.id==="prevwk"?-7:7); S.rstatus=""; if(S.tab==="report") render(); else paintHeader(); return; }
   if(t.id==="reportbtn"){ if(S.dirty) saveLog(); S.tab = S.tab==="report" ? "log" : "report"; S.rstatus=""; render(); window.scrollTo(0,0); return; }
   if(t.id==="rtext"){ shareReportText(); return; }
-  if(t.id==="rcopy"){ copyText(reportText(weekReport(S.weekStart))).then(ok => rStatus(ok ? "Copied. Paste it into a text or email to your coach." : "Couldn't copy on this device. Try Share as text.")); return; }
+  if(t.id==="rcopy"){ copyText(reportText(weekReport(S.weekStart))).then(ok => rStatus(ok ? "Copied. Paste it into a text or email to your coach." : "Couldn't copy on this device. Try Share PDF.")); return; }
   if(t.id==="rpdf"){ shareReportPdf(); return; }
   if(t.id==="todaybtn"){ if(S.dirty) saveLog(); S.weekStart = monday(new Date()); S.date = ymd(new Date()); S.status=""; render(); return; }
-  if(t.id && t.id.startsWith("tab-")){ if(S.dirty) saveLog(); S.tab = t.id.slice(4); render(); window.scrollTo(0,0); return; }
+  if(t.id && t.id.startsWith("tab-")){ if(S.dirty) saveLog(); S.tab = t.id.slice(4); S.planStatus=""; render(); window.scrollTo(0,0); return; }
   if(t.dataset.open){ S.date = t.dataset.open; S.weekStart = monday(parse(S.date)); S.tab="log"; S.status=""; render(); window.scrollTo(0,0); return; }
   const D = S.draft;
   if(t.dataset.tick){ const s = D.entries[t.dataset.tick][+t.dataset.i]; s.done = !s.done;
-    if(s.done){ const day = dayFor(D); const ex = day && day.exercises.find(x=>x.id===t.dataset.tick);
-      if(!s.reps && ex) s.reps = String(ex.reps||"").split(/[-–\s]/)[0];
-      if(!s.lbs && ex && !ex.noWeight) s.lbs = String(ex.lbs||"").replace(/[^0-9.]/g,""); }
+    if(s.done){ const ex = exList(D).find(x=>x.id===t.dataset.tick);
+      const reps = ex && (ex.reps || String(ex.target||"").replace(/^\s*\S+\s*x\s*/,"").split(/ @ | · /)[0]);
+      const lbs = ex && String(ex.lbs || (String(ex.target||"").split(" @ ")[1] || "")).replace(/[^0-9.]/g,"");
+      if(!s.reps && reps) s.reps = String(reps).split(/[-–\s]/)[0];
+      if(!s.lbs && ex && !ex.noWeight && lbs) s.lbs = lbs; }
     markDirty(); render(); return; }
-  if(t.dataset.addset){ const a = D.entries[t.dataset.addset]; const last = a[a.length-1]||{}; a.push({reps:"",lbs:last.lbs||"",done:false}); markDirty(); render(); return; }
+  if(t.dataset.addset){ const a = D.entries[t.dataset.addset] = D.entries[t.dataset.addset] || []; const last = a[a.length-1]||{}; a.push({reps:"",lbs:last.lbs||"",done:false}); markDirty(); render(); return; }
   if(t.dataset.rmset){ D.entries[t.dataset.rmset].pop(); markDirty(); render(); return; }
   if(t.id==="complete"){ D.complete = !D.complete; S.dirty = true; saveLog().then(render); render(); return; }
   if(t.id==="delask"){ S.confirmDel = true; render(); return; }
   if(t.id==="delno"){ S.confirmDel = false; render(); return; }
   if(t.id==="delyes"){ deleteLog(); return; }
+  // program home: schedule + library
+  if(t.id==="assign"){
+    const pid = $("#as-prog").value, start = ymd(monday(parse($("#as-start").value || ymd(new Date()))));
+    const p = progById(pid); if(!p) return;
+    S.plan.schedule = S.plan.schedule.filter(e => e.start !== start);   // one program per start week
+    S.plan.schedule.push({id:uid(), programId:pid, start});
+    S.assignStart = null; S.assignProg = pid;
+    commitPlan(`Scheduled “${p.name}” starting ${fmtShort(start)}`); return; }
+  if(t.dataset.rmsched){ S.confirmRmSched = t.dataset.rmsched; render(); return; }
+  if(t.dataset.rmschedNo){ S.confirmRmSched = null; render(); return; }
+  if(t.dataset.rmschedYes){ S.plan.schedule = S.plan.schedule.filter(e => e.id !== t.dataset.rmschedYes); S.confirmRmSched = null; commitPlan("Removed from the schedule. The program is still in your library."); return; }
+  if(t.id==="newprog"){ openEditor(normalizeProgram({id:uid(), name:"", weekCount:4, weeks:[{frequency:3, mode:"different", days:[]}], createdAt:new Date().toISOString()})); return; }
+  if(t.dataset.editprog){ const p = progById(t.dataset.editprog); if(p) openEditor(p); return; }
+  if(t.dataset.dupprog){ const p = progById(t.dataset.dupprog); if(!p) return;
+    const c = clone(p); c.id = uid(); c.name = p.name + " (copy)"; c.createdAt = new Date().toISOString();
+    S.plan.programs.push(c); commitPlan(`Made a copy: “${c.name}”. Open it to rename or change it.`); return; }
+  if(t.dataset.delprog){ S.confirmDelProg = t.dataset.delprog; render(); return; }
+  if(t.dataset.delprogNo){ S.confirmDelProg = null; render(); return; }
+  if(t.dataset.delprogYes){ const p = progById(t.dataset.delprogYes);
+    S.plan.programs = S.plan.programs.filter(x => x.id !== t.dataset.delprogYes); S.confirmDelProg = null;
+    commitPlan(p ? `Deleted “${p.name}”` : ""); return; }
+  if(t.id==="toggleclient"){ S.openClient = !S.openClient; render(); return; }
+  // program editor
   const P = S.planDraft; if(!P) return;
+  if(t.id==="backlib"){ if(S.planDirty || !progById(P.id)){ S.leaveWarn = true; render(); return; } leaveEditor(); return; }
+  if(t.id==="plansave"){ saveProgram(); return; }
+  if(t.id==="plancancel"){ leaveEditor(); return; }
   const W = P.weeks[S.progWeek||0];
   if(t.dataset.pw!==undefined){ S.progWeek = +t.dataset.pw; render(); return; }
   if(t.dataset.wm){ W.mode = t.dataset.wm; ensureDays(W); planChanged(true); return; }
-  if(t.id==="copyprev"){ const prev = clone(P.weeks[S.progWeek-1]); P.weeks[S.progWeek] = prev; planChanged(true); return; }
+  if(t.id==="copyprev"){ P.weeks[S.progWeek] = clone(P.weeks[S.progWeek-1]); planChanged(true); return; }
   if(t.dataset.addex!==undefined){ W.days[+t.dataset.addex].exercises.push({id:uid(),name:"",sets:3,reps:"",lbs:"",noWeight:false,notes:""}); planChanged(true); return; }
   if(t.dataset.rmex){ const [di,ei]=t.dataset.rmex.split("-").map(Number); W.days[di].exercises.splice(ei,1); planChanged(true); return; }
-  if(t.id==="plansave"){ savePlan(); return; }
-  if(t.id==="plancancel"){ S.planDraft=null; S.planDirty=false; S.planStatus=""; render(); return; }
 });
 document.addEventListener("input", e => {
   const el = e.target;
   if(el.dataset.k){ S.draft.entries[el.dataset.ex][+el.dataset.i][el.dataset.k] = el.value; markDirty(); return; }
   if(el.id==="notes"){ S.draft.notes = el.value; markDirty(); return; }
   if(el.id==="coachfb"){ S.draft.coachFeedback = el.value; markDirty(); return; }
-  const P = S.planDraft; if(!P) return;
+  if(el.dataset.c){ return; }
+  const P = S.planDraft; if(!P || !S.editId) return;
   const W = P.weeks[S.progWeek||0];
   if(el.dataset.p){ P[el.dataset.p] = el.value; }
   else if(el.dataset.e!==undefined){ const ex = W.days[+el.dataset.d].exercises[+el.dataset.e]; ex[el.dataset.f] = el.dataset.f==="sets" ? (parseInt(el.value)||el.value) : el.value; }
@@ -951,22 +1129,22 @@ document.addEventListener("change", e => {
   const el = e.target;
   if(el.id==="daysel"){
     S.draft.dayId = el.value;
-    const day = dayFor(S.draft);
-    if(day) day.exercises.forEach(ex => { if(!S.draft.entries[ex.id]) S.draft.entries[ex.id] = blankSets(ex); });
+    exList(S.draft).forEach(ex => { if(!S.draft.entries[ex.id] && ex.sets !== undefined) S.draft.entries[ex.id] = blankSets(ex); });
     markDirty(); render(); return;
   }
-  const P = S.planDraft; if(!P) return;
+  if(el.dataset.c){ if(S.plan.client[el.dataset.c] !== el.value){ S.plan.client[el.dataset.c] = el.value; S.plan = normalizePlan(S.plan); persist(); Sync.queue({type:"program", data:S.plan}); } return; }
+  if(el.id==="as-start"){ S.assignStart = el.value; render(); return; }
+  if(el.id==="as-prog"){ S.assignProg = el.value; return; }
+  const P = S.planDraft; if(!P || !S.editId) return;
   const W = P.weeks[S.progWeek||0];
-  if(el.id==="p-weeks"){ P.weekCount = +el.value; S.planDraft = normalizePlan(P); planChanged(true); return; }
+  if(el.id==="p-weeks"){ P.weekCount = +el.value; S.planDraft = normalizeProgram(P); planChanged(true); return; }
   if(el.id==="w-freq"){ W.frequency = +el.value; ensureDays(W); planChanged(true); return; }
   if(el.dataset.nw){ const [di,ei] = el.dataset.nw.split("-").map(Number); const ex = W.days[di].exercises[ei]; ex.noWeight = el.checked; if(el.checked) ex.lbs = ""; planChanged(true); return; }
 });
 window.addEventListener("pagehide", () => { if(S.dirty) saveLog(); });
- 
+
 function selectText(el){ const r=document.createRange(); r.selectNodeContents(el); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
 boot();
 </script>
 </body>
 </html>
- 
-Claude finished the response
