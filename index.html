@@ -1,3 +1,30 @@
+
+Claude Desktop (macOS), Connected
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Index · HTML
 <!doctype html>
 <html lang="en">
 <head>
@@ -156,8 +183,23 @@ textarea{width:100%;min-height:76px;resize:vertical}
   .brand h1{font-size:1.4rem}
 }
 @media (prefers-reduced-motion:no-preference){.tick,.strip button,.btn{transition:background .15s,border-color .15s}}
+.iconbtn.rbtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.rbar{flex-direction:column;align-items:stretch}
+.rbar .acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.rbar .btn{padding:10px 6px;font-size:.92rem}
+.rstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rstats>div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:8px;background:var(--sunk)}
+.rstats b{font:800 1.7rem/1 var(--f-display)}
+.rstats b span{font-size:1rem;color:var(--muted);font-weight:700}
+.rex{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.rex li{padding:9px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.rex .rn{font-weight:600;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.rex .rt{font-size:.85rem;color:var(--muted)}
+.rex .rr{font-variant-numeric:tabular-nums}
+.rnote{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:var(--sunk)}
+.rnote.coachfb{background:var(--accent-soft)}
 </style>
-
+ 
 </head>
 <body>
 <div class="wrap">
@@ -172,6 +214,7 @@ textarea{width:100%;min-height:76px;resize:vertical}
         <button class="iconbtn" id="prevwk" aria-label="Previous week">‹</button>
         <button class="iconbtn" id="todaybtn">Today</button>
         <button class="iconbtn" id="nextwk" aria-label="Next week">›</button>
+        <button class="iconbtn rbtn" id="reportbtn" aria-pressed="false">Week report</button>
       </div>
     </div>
     <div class="strip" id="strip"></div>
@@ -184,7 +227,7 @@ textarea{width:100%;min-height:76px;resize:vertical}
   </header>
   <main id="main"><div class="empty">Loading your program…</div></main>
 </div>
-
+ 
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -197,14 +240,14 @@ const fmtLong = s => parse(s).toLocaleDateString(undefined,{weekday:"long",month
 const fmtShort = s => parse(s).toLocaleDateString(undefined,{month:"short",day:"numeric"});
 const uid = () => Math.random().toString(36).slice(2,9);
 const CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
-
+ 
 const S = {
   plan:null, logs:{}, tab:"log",
   date: ymd(new Date()), weekStart: monday(new Date()),
   draft:null, draftDate:null, dirty:false, saving:false, status:"",
   planDraft:null, planDirty:false
 };
-
+ 
 /* ---------- data: local storage + Google Sheets sync ---------- */
 const LS = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
@@ -224,12 +267,12 @@ const DEFAULT_PROGRAM = {
     {id:"d3",name:"Day 3",location:"In Gym",split:"Total Body",kpi:"",duration:"",exercises:[]}
   ]
 };
-
+ 
 /* ===== YOUR SHEET =====
    Paste your Apps Script web app URL (ends in /exec) between the quotes.
    It's safe in a public repo: the Sheet answers nothing without the passcode. */
-const SYNC_URL = "https://script.google.com/macros/s/AKfycbzBppMKTP5nnBQPCs4DeCHKpJOq0zS3Jnj1se3-o4AWh6LOCQH1SMwXWfeUjuTdQjOhEA/exec";
-
+const SYNC_URL = "";
+ 
 const Sync = {
   cfg: Object.assign({url:"", key:""}, LS.get("fm.cfg", {})),
   pending: LS.get("fm.pending", {}),   // key -> op, coalesced
@@ -306,7 +349,7 @@ const Sync = {
     return {cls:"", text:"Connecting…"};
   }
 };
-
+ 
 function persist(){ LS.set("fm.data", {plan:S.plan, logs:S.logs}); }
 function afterSync(){
   if(S.dirty){ paintHeader(); return; }
@@ -317,7 +360,7 @@ function afterSync(){
   if(!S.planDirty) S.planDraft = null;
   render();
 }
-
+ 
 function boot(){
   // Old invite links carried the URL and passcode. Use them once, then wipe them from the address bar.
   const q = new URLSearchParams(location.search);
@@ -337,7 +380,7 @@ function boot(){
   window.addEventListener("online", () => Sync.pull());
   setInterval(() => { if(!document.hidden && !S.dirty) Sync.pull(); }, 60000);
 }
-
+ 
 /* ---------- program model ---------- */
 const OPT = {
   where:["At Home","In Gym"],
@@ -383,7 +426,7 @@ function weekInfo(date){
 function logWeekIdx(l){ return Number.isInteger(l.weekIdx) ? Math.min(l.weekIdx, S.plan.weeks.length-1) : weekInfo(l.date).idx; }
 function dayFor(l){ const w = S.plan.weeks[logWeekIdx(l)]; return w ? w.days.find(d => d.id === l.dayId) : null; }
 function hasProgram(){ return S.plan && S.plan.weeks.some(w => activeDays(w).some(d => d.exercises.length)); }
-
+ 
 function suggestDay(date, wi){
   const w = S.plan.weeks[wi], ds = activeDays(w); if(!ds.length) return null;
   if(w.mode === "same") return ds[0].id;
@@ -394,9 +437,9 @@ function suggestDay(date, wi){
   const i = ds.findIndex(d => d.id === prev.dayId);
   return ds[(i+1) % ds.length].id;
 }
-
+ 
 function blankSets(ex){ const n = Math.max(1, Number(ex.sets)||1); return Array.from({length:n}, () => ({reps:"", lbs:"", done:false})); }
-
+ 
 function loadDraft(date, keepDay){
   const existing = S.logs[date];
   if(existing){
@@ -412,7 +455,7 @@ function loadDraft(date, keepDay){
   if(day) day.exercises.forEach(ex => { if(!S.draft.entries[ex.id]) S.draft.entries[ex.id] = blankSets(ex); });
   S.draftDate = date; S.dirty = false;
 }
-
+ 
 let saveTimer = null;
 function markDirty(){ S.dirty = true; S.status = "Unsaved changes"; paintStatus(); clearTimeout(saveTimer); saveTimer = setTimeout(saveLog, 1200); }
 async function saveLog(){
@@ -457,8 +500,9 @@ function paintHeader(){
     return `<button class="${cls}" data-date="${k}" aria-label="${fmtLong(k)}${l&&l.complete?', workout done':''}"><span class="dow">${d.toLocaleDateString(undefined,{weekday:"short"})}</span><span class="dnum">${d.getDate()}</span><span class="dot"></span></button>`;
   }).join("");
   ["log","history","program","settings"].forEach(t => $("#tab-"+t).setAttribute("aria-selected", String(S.tab===t)));
+  $("#reportbtn").setAttribute("aria-pressed", String(S.tab==="report"));
 }
-
+ 
 /* ---------- views ---------- */
 function render(){
   paintHeader();
@@ -469,9 +513,10 @@ function render(){
   if(S.tab==="history") html += viewHistory();
   if(S.tab==="program") html += viewProgram();
   if(S.tab==="settings") html += viewSettings();
+  if(S.tab==="report") html += viewReport();
   m.innerHTML = html;
 }
-
+ 
 function viewLog(){
   if(!hasProgram()) return `<div class="empty">No program yet. Your coach adds the plan in the <b>Program</b> tab.</div>`;
   if(S.draftDate !== S.date) loadDraft(S.date);
@@ -536,13 +581,185 @@ function viewLog(){
   return h;
 }
 function paintStatus(){ const el = $("#status"); if(el) el.textContent = S.status; }
-
+ 
 function summarize(l){
   const day = dayFor(l);
   let sets=0, done=0;
   Object.values(l.entries||{}).forEach(a => a.forEach(s => { sets++; if(s.done) done++; }));
   return { name: `Week ${logWeekIdx(l)+1} · ` + ((day && day.name) || l.dayName || "Workout"), done, sets };
 }
+/* ---------- weekly report ---------- */
+const CLIENT_NAME = "Tolu";
+function setsLine(sets, nw){
+  const used = sets.filter(s => s.reps || s.lbs || s.done);
+  if(!used.length) return "Not logged";
+  const reps = used.map(s => s.reps || "–");
+  if(nw) return reps.join(", ") + " · no weight";
+  const lbs = used.map(s => String(s.lbs||"").trim());
+  const same = lbs.every(l => l === lbs[0]);
+  if(same) return reps.join(", ") + (lbs[0] ? ` @ ${lbs[0]} lbs` : "");
+  return used.map((s,i) => reps[i] + (lbs[i] ? ` @ ${lbs[i]}` : "")).join(", ") + " lbs";
+}
+function weekReport(ws){
+  const start = ymd(ws), end = ymd(addDays(ws,6));
+  const info = weekInfo(start), total = S.plan.weekCount;
+  const weekLabel = info.before ? "Before program start" : info.after ? "After program end" : `Week ${info.pw} of ${total}`;
+  const planned = (info.before || info.after) ? null : info.week.frequency;
+  const days = []; let completed = 0, setsDone = 0, setsTotal = 0;
+  for(let i=0;i<7;i++){
+    const date = ymd(addDays(ws,i)), l = S.logs[date];
+    if(!l) continue;
+    const day = dayFor(l), exInfo = l.exInfo || {};
+    const order = day ? day.exercises.map(e => e.id) : [];
+    Object.keys(l.entries||{}).forEach(id => { if(!order.includes(id)) order.push(id); });
+    const exercises = order.filter(id => l.entries && l.entries[id]).map(id => {
+      const ex = day && day.exercises.find(e => e.id === id), snap = exInfo[id];
+      const nw = snap ? !!snap.noWeight : !!(ex && ex.noWeight);
+      const sets = l.entries[id], done = sets.filter(s => s.done).length;
+      setsDone += done; setsTotal += sets.length;
+      return {
+        name: (snap && snap.name) || (ex && ex.name) || "Exercise",
+        target: (snap && snap.target) || (ex ? `${ex.sets||"–"} x ${ex.reps||"–"}${nw ? " · no weight" : (ex.lbs ? " @ "+ex.lbs : "")}` : ""),
+        result: setsLine(sets, nw), done, total: sets.length
+      };
+    });
+    if(l.complete) completed++;
+    days.push({date, complete:!!l.complete, name:(day && day.name) || l.dayName || "Workout",
+      meta:[day && day.location, day && day.split, day && day.kpi ? "KPI: "+day.kpi : "", day && day.duration].filter(Boolean),
+      exercises, notes:l.notes||"", coachFeedback:l.coachFeedback||""});
+  }
+  return {start, end, range:`${fmtShort(start)} – ${fmtShort(end)}`, weekLabel, planned, completed, setsDone, setsTotal, days,
+    title:`Fit-4-Me weekly report · ${CLIENT_NAME}`, generated:new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})};
+}
+function reportSummary(R){
+  const w = R.planned ? `${R.completed} of ${R.planned} planned workouts completed` : `${R.completed} workout${R.completed===1?"":"s"} completed`;
+  return `${w} · ${R.setsDone}/${R.setsTotal} sets done`;
+}
+function reportText(R){
+  const L = [R.title, `${R.weekLabel} · ${R.range}`, reportSummary(R), ""];
+  if(!R.days.length) L.push("No workouts logged this week.");
+  R.days.forEach(d => {
+    L.push(`${fmtLong(d.date).toUpperCase()} · ${d.name}${d.meta.length ? " ("+d.meta.join(", ")+")" : ""} · ${d.complete ? "Completed" : "In progress"}`);
+    d.exercises.forEach(e => L.push(`- ${e.name} [target ${e.target}]: ${e.result} (${e.done}/${e.total} sets)`));
+    if(d.notes) L.push(`My notes: ${d.notes}`);
+    if(d.coachFeedback) L.push(`Coach feedback: ${d.coachFeedback}`);
+    L.push("");
+  });
+  return L.join("\n").trim();
+}
+function viewReport(){
+  const R = weekReport(S.weekStart);
+  let h = `<section class="panel report">
+    <div class="dayhead"><div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+      <span class="lbl">${esc(R.weekLabel)} · ${esc(R.range)}</span>
+      <h2 class="sec">Weekly report</h2></div>
+      <span class="lbl">Prepared ${esc(R.generated)}</span></div>
+    <div class="rstats">
+      <div><b>${R.completed}${R.planned ? `<span>/${R.planned}</span>` : ""}</b><span class="lbl">workouts done</span></div>
+      <div><b>${R.setsDone}<span>/${R.setsTotal}</span></b><span class="lbl">sets done</span></div>
+      <div><b>${R.days.length}</b><span class="lbl">days logged</span></div>
+    </div>
+  </section>`;
+  if(!R.days.length) h += `<div class="empty">No workouts logged for ${esc(R.range)}. Use ‹ › above to pick another week.</div>`;
+  R.days.forEach(d => {
+    h += `<section class="panel rday">
+      <div class="dayhead"><div style="min-width:0"><span class="lbl">${esc(fmtLong(d.date))}</span>
+        <div class="exname">${esc(d.name)}</div></div>
+        <span class="chip ${d.complete?"ok":""}">${d.complete?"Completed":"In progress"}</span></div>
+      ${d.meta.length ? `<div class="chips">${d.meta.map(m=>`<span class="chip">${esc(m)}</span>`).join("")}</div>` : ""}
+      <ul class="rex">${d.exercises.map(e => `<li><div class="rn">${esc(e.name)} <span class="lbl">${e.done}/${e.total} sets</span></div>
+        <div class="rt">Target ${esc(e.target)}</div><div class="rr">${esc(e.result)}</div></li>`).join("")}</ul>
+      ${d.notes ? `<div class="rnote"><span class="lbl">My notes</span><div>${esc(d.notes)}</div></div>` : ""}
+      ${d.coachFeedback ? `<div class="rnote coachfb"><span class="lbl">Coach feedback</span><div>${esc(d.coachFeedback)}</div></div>` : ""}
+    </section>`;
+  });
+  h += `<div class="bar rbar"><span class="status" id="rstatus">${esc(S.rstatus||"Share this week with your coach")}</span>
+    <div class="acts">
+      <button class="btn ghost" id="rcopy">Copy text</button>
+      <button class="btn ghost" id="rtext">Share text</button>
+      <button class="btn" id="rpdf">Share PDF</button>
+    </div></div>`;
+  return h;
+}
+function rStatus(m){ S.rstatus = m; const el = $("#rstatus"); if(el) el.textContent = m; }
+async function copyText(txt){
+  try{ await navigator.clipboard.writeText(txt); return true; }
+  catch(e){ const ta = document.createElement("textarea"); ta.value = txt; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select();
+    let ok = false; try{ ok = document.execCommand("copy"); }catch(_){} ta.remove(); return ok; }
+}
+async function shareReportText(){
+  const R = weekReport(S.weekStart), text = reportText(R);
+  if(navigator.share){ try{ await navigator.share({title:R.title, text}); rStatus("Shared"); return; }catch(e){ if(e.name==="AbortError") return; } }
+  rStatus(await copyText(text) ? "Copied. Paste it into a text or email to your coach." : "Couldn't copy on this device. Try Share PDF.");
+}
+let jsPDFReady = null;
+function loadJsPDF(){
+  if(window.jspdf) return Promise.resolve(window.jspdf.jsPDF);
+  if(!jsPDFReady) jsPDFReady = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    s.onload = () => res(window.jspdf.jsPDF); s.onerror = () => { jsPDFReady = null; rej(new Error("load")); };
+    document.head.appendChild(s);
+  });
+  return jsPDFReady;
+}
+// built-in PDF fonts only cover basic Latin characters
+const pdfSafe = s => String(s||"").replace(/[–—]/g,"-").replace(/[×]/g,"x").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/…/g,"...").replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g,"");
+function buildPdf(jsPDF, R){
+  const doc = new jsPDF({unit:"pt", format:"letter"});
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, CW = W - 2*M;
+  const green = [76,122,53], ink = [29,38,25], muted = [95,107,88], line = [211,218,203];
+  let y = 0;
+  const color = c => doc.setTextColor(c[0],c[1],c[2]);
+  const need = h => { if(y + h > H - 48){ doc.addPage(); y = 56; } };
+  const para = (txt, size, style, c, gap) => {
+    doc.setFont("helvetica", style); doc.setFontSize(size); color(c);
+    doc.splitTextToSize(pdfSafe(txt), CW - (gap||0)).forEach(ln => { need(size*1.35); doc.text(ln, M + (gap||0), y); y += size*1.35; });
+  };
+  doc.setFillColor(green[0],green[1],green[2]); doc.rect(0,0,W,86,"F");
+  doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(22);
+  doc.text(pdfSafe(R.title), M, 44);
+  doc.setFont("helvetica","normal"); doc.setFontSize(11);
+  doc.text(pdfSafe(`${R.weekLabel} · ${R.range}   |   Prepared ${R.generated}`), M, 66);
+  y = 118;
+  para(reportSummary(R), 13, "bold", ink); y += 6;
+  if(!R.days.length) para("No workouts logged this week.", 11, "normal", muted);
+  R.days.forEach(d => {
+    need(70); y += 8;
+    doc.setDrawColor(line[0],line[1],line[2]); doc.line(M, y-14, W-M, y-14);
+    para(`${fmtLong(d.date)}  ·  ${d.name}  ·  ${d.complete ? "Completed" : "In progress"}`, 12.5, "bold", d.complete ? green : ink);
+    if(d.meta.length) para(d.meta.join("  ·  "), 9.5, "normal", muted);
+    y += 4;
+    d.exercises.forEach(e => {
+      need(46);
+      para(`${e.name}   (${e.done}/${e.total} sets)`, 10.5, "bold", ink, 8);
+      para(`Target ${e.target}`, 9.5, "normal", muted, 8);
+      para(e.result, 10.5, "normal", ink, 8); y += 3;
+    });
+    if(d.notes){ y += 2; para("My notes", 9, "bold", muted, 8); para(d.notes, 10.5, "normal", ink, 8); }
+    if(d.coachFeedback){ y += 2; para("Coach feedback", 9, "bold", green, 8); para(d.coachFeedback, 10.5, "normal", ink, 8); }
+    y += 10;
+  });
+  const n = doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){ doc.setPage(i); doc.setFont("helvetica","normal"); doc.setFontSize(8.5); color(muted); doc.text(`Fit-4-Me · page ${i} of ${n}`, M, H-24); }
+  return doc;
+}
+async function shareReportPdf(){
+  rStatus("Making PDF…");
+  let jsPDF; try{ jsPDF = await loadJsPDF(); }catch(e){ rStatus("Couldn't load the PDF maker. Check your connection, or use Share as text."); return; }
+  const R = weekReport(S.weekStart), doc = buildPdf(jsPDF, R);
+  const name = `Fit-4-Me_${R.weekLabel.replace(/\s+/g,"")}_${R.start}.pdf`.replace(/[^\w.-]/g,"");
+  const blob = doc.output("blob"), file = new File([blob], name, {type:"application/pdf"});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:R.title}); rStatus("Shared"); return; }
+    catch(e){ if(e.name==="AbortError"){ rStatus("Share this week with your coach"); return; } }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  rStatus(`Downloaded ${name}`);
+}
+ 
 function viewHistory(){
   const all = Object.values(S.logs).sort((a,b)=>b.date.localeCompare(a.date));
   let h = `<section class="panel"><div class="dayhead"><h2 class="sec">Consistency</h2><span class="lbl">last 6 weeks</span></div><div class="weeks">`;
@@ -554,7 +771,7 @@ function viewHistory(){
     h += `<div class="weekrow"><span class="lbl">${fmtShort(ymd(ws))} · ${cnt}</span>${[...Array(7)].map((_,i)=>{const k=ymd(addDays(ws,i)),l=S.logs[k];return `<span class="cell ${l?"has":""} ${l&&l.complete?"complete":""}" title="${esc(fmtLong(k))}">${l&&l.complete?"✓":""}</span>`}).join("")}</div>`;
   }
   h += `</div></section>`;
-
+ 
   // progress per exercise (ids carry across weeks when the coach copies a week)
   const exMap = {};
   S.plan.weeks.forEach(w => w.days.forEach(d => d.exercises.forEach(ex => { exMap[ex.id] = {name:ex.name, noWeight:!!ex.noWeight}; })));
@@ -581,7 +798,7 @@ function viewHistory(){
       <div class="v">Last (${esc(fmtShort(last.date))}): ${esc(last.line)} reps${last.nw ? " · no weight" : (last.lbs?` @ ${last.lbs} lbs`:"")} · ${s.length} session${s.length>1?"s":""}</div></div>`;
   }).join("")}</div>`;
   h += `</section>`;
-
+ 
   h += `<section style="display:flex;flex-direction:column;gap:10px"><h2 class="sec">All workouts</h2>`;
   if(!all.length) h += `<div class="empty">No workouts logged yet. Pick a day above and start with the Log tab.</div>`;
   else h += `<div class="loglist">${all.map(l=>{const s=summarize(l);return `<button class="logitem" data-open="${esc(l.date)}">
@@ -590,7 +807,7 @@ function viewHistory(){
   h += `</section>`;
   return h;
 }
-
+ 
 function selectHtml(id, attrs, options, val){
   const list = val && !options.includes(val) ? [val, ...options] : options;
   return `<select id="${id}" ${attrs}><option value="">Choose…</option>${list.map(o => `<option value="${esc(o)}" ${o===val?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
@@ -652,7 +869,7 @@ function viewProgram(){
   <div style="display:flex;gap:8px">${S.planDirty?`<button class="btn ghost" id="plancancel">Discard</button>`:""}<button class="btn" id="plansave" ${S.planDirty?"":"disabled"}>Save program</button></div></div>`;
   return h;
 }
-
+ 
 function viewSettings(){
   const c = Sync.cfg, connected = Sync.configured() && Sync.state !== "badkey";
   const appLink = location.origin + location.pathname;
@@ -696,7 +913,7 @@ function viewSettings(){
     <div><span class="lbl">Coach's instructions</span><div style="max-width:65ch">${esc(S.plan && S.plan.welcome)}</div></div>
   </section>`;
 }
-
+ 
 /* ---------- events ---------- */
 function planChanged(rerender){
   if(rerender){ S.planDirty = true; render(); return; }
@@ -714,7 +931,11 @@ document.addEventListener("click", e => {
   if(t.id==="copyinvite"){ const txt = $("#invite").textContent; const done = m => { const el=$("#copystatus"); if(el) el.textContent=m; };
     try{ navigator.clipboard.writeText(txt).then(()=>done("Copied"), ()=>{ selectText($("#invite")); done("Press copy to finish"); }); }catch(e){ selectText($("#invite")); done("Press copy to finish"); } return; }
   if(t.dataset.date){ if(S.dirty) saveLog(); S.date = t.dataset.date; S.status=""; S.confirmDel=false; if(S.tab!=="program") S.tab="log"; render(); return; }
-  if(t.id==="prevwk"||t.id==="nextwk"){ S.weekStart = addDays(S.weekStart, t.id==="prevwk"?-7:7); paintHeader(); return; }
+  if(t.id==="prevwk"||t.id==="nextwk"){ S.weekStart = addDays(S.weekStart, t.id==="prevwk"?-7:7); S.rstatus=""; if(S.tab==="report") render(); else paintHeader(); return; }
+  if(t.id==="reportbtn"){ if(S.dirty) saveLog(); S.tab = S.tab==="report" ? "log" : "report"; S.rstatus=""; render(); window.scrollTo(0,0); return; }
+  if(t.id==="rtext"){ shareReportText(); return; }
+  if(t.id==="rcopy"){ copyText(reportText(weekReport(S.weekStart))).then(ok => rStatus(ok ? "Copied. Paste it into a text or email to your coach." : "Couldn't copy on this device. Try Share as text.")); return; }
+  if(t.id==="rpdf"){ shareReportPdf(); return; }
   if(t.id==="todaybtn"){ if(S.dirty) saveLog(); S.weekStart = monday(new Date()); S.date = ymd(new Date()); S.status=""; render(); return; }
   if(t.id && t.id.startsWith("tab-")){ if(S.dirty) saveLog(); S.tab = t.id.slice(4); render(); window.scrollTo(0,0); return; }
   if(t.dataset.open){ S.date = t.dataset.open; S.weekStart = monday(parse(S.date)); S.tab="log"; S.status=""; render(); window.scrollTo(0,0); return; }
@@ -768,9 +989,11 @@ document.addEventListener("change", e => {
   if(el.dataset.nw){ const [di,ei] = el.dataset.nw.split("-").map(Number); const ex = W.days[di].exercises[ei]; ex.noWeight = el.checked; if(el.checked) ex.lbs = ""; planChanged(true); return; }
 });
 window.addEventListener("pagehide", () => { if(S.dirty) saveLog(); });
-
+ 
 function selectText(el){ const r=document.createRange(); r.selectNodeContents(el); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
 boot();
 </script>
 </body>
 </html>
+ 
+Claude finished the response
