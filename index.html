@@ -10,6 +10,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234c7a35'/%3E%3Cpath d='M14 26v12M20 21v22M44 21v22M50 26v12M20 32h24' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Fit-4-Me Training Log</title>
+<script>try{var p=localStorage.getItem("fm.palette");if(p&&p!=="sage")document.documentElement.setAttribute("data-palette",p)}catch(e){}</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap">
 <style>
@@ -185,6 +187,30 @@ textarea{width:100%;min-height:76px;resize:vertical}
 .rex .rr{font-variant-numeric:tabular-nums}
 .rnote{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:var(--sunk)}
 .rnote.coachfb{background:var(--accent-soft)}
+/* color themes: picked per device in Settings */
+:root[data-palette="berry"]{--bg:#fff4f8;--surface:#ffffff;--sunk:#fbe6ef;--line:#f1cddd;--fg:#2b1220;--muted:#7d5568;--accent:#d1306f;--accent-ink:#ffffff;--accent-soft:#fcdde9;--warn:#c25400;--warn-soft:#ffe6cf;--done:#b0225c}
+@media (prefers-color-scheme: dark){:root[data-palette="berry"]:not([data-theme="light"]){--bg:#1c0f16;--surface:#26141e;--sunk:#301a26;--line:#4a2a3b;--fg:#f8e6ee;--muted:#c19aad;--accent:#ff7aa8;--accent-ink:#2b0614;--accent-soft:#4a1d31;--warn:#ffad6b;--warn-soft:#3d2414;--done:#ff7aa8;color-scheme:dark}}
+:root[data-palette="berry"][data-theme="dark"]{--bg:#1c0f16;--surface:#26141e;--sunk:#301a26;--line:#4a2a3b;--fg:#f8e6ee;--muted:#c19aad;--accent:#ff7aa8;--accent-ink:#2b0614;--accent-soft:#4a1d31;--warn:#ffad6b;--warn-soft:#3d2414;--done:#ff7aa8;color-scheme:dark}
+:root[data-palette="sunset"]{--bg:#fff6f0;--surface:#ffffff;--sunk:#fde8dc;--line:#f3d0bd;--fg:#2d1710;--muted:#85604f;--accent:#e04e2e;--accent-ink:#ffffff;--accent-soft:#ffe0d3;--warn:#b4246b;--warn-soft:#fbe0ee;--done:#c2401f}
+@media (prefers-color-scheme: dark){:root[data-palette="sunset"]:not([data-theme="light"]){--bg:#1d120d;--surface:#271812;--sunk:#321f17;--line:#4c3024;--fg:#fbe9df;--muted:#c6a08e;--accent:#ff8a66;--accent-ink:#2d0d03;--accent-soft:#4d2418;--warn:#ff8fc4;--warn-soft:#3d1729;--done:#ff8a66;color-scheme:dark}}
+:root[data-palette="sunset"][data-theme="dark"]{--bg:#1d120d;--surface:#271812;--sunk:#321f17;--line:#4c3024;--fg:#fbe9df;--muted:#c6a08e;--accent:#ff8a66;--accent-ink:#2d0d03;--accent-soft:#4d2418;--warn:#ff8fc4;--warn-soft:#3d1729;--done:#ff8a66;color-scheme:dark}
+:root[data-palette="lagoon"]{--bg:#effbfa;--surface:#ffffff;--sunk:#daf3f0;--line:#bfe5e0;--fg:#0e2a2a;--muted:#4f7472;--accent:#0a8f89;--accent-ink:#ffffff;--accent-soft:#cdf1ec;--warn:#c25a12;--warn-soft:#fde6d3;--done:#08807b}
+@media (prefers-color-scheme: dark){:root[data-palette="lagoon"]:not([data-theme="light"]){--bg:#0b1a1a;--surface:#102424;--sunk:#152e2e;--line:#224444;--fg:#def6f3;--muted:#8fbab5;--accent:#3fd6cc;--accent-ink:#032222;--accent-soft:#11403d;--warn:#ffad6b;--warn-soft:#3a2716;--done:#3fd6cc;color-scheme:dark}}
+:root[data-palette="lagoon"][data-theme="dark"]{--bg:#0b1a1a;--surface:#102424;--sunk:#152e2e;--line:#224444;--fg:#def6f3;--muted:#8fbab5;--accent:#3fd6cc;--accent-ink:#032222;--accent-soft:#11403d;--warn:#ffad6b;--warn-soft:#3a2716;--done:#3fd6cc;color-scheme:dark}
+:root[data-palette="grape"]{--bg:#f8f4ff;--surface:#ffffff;--sunk:#ece4fc;--line:#dacdf5;--fg:#1f1533;--muted:#6b5d86;--accent:#7c3aed;--accent-ink:#ffffff;--accent-soft:#e9ddff;--warn:#c2410c;--warn-soft:#ffe4d4;--done:#6d28d9}
+@media (prefers-color-scheme: dark){:root[data-palette="grape"]:not([data-theme="light"]){--bg:#140f20;--surface:#1c152c;--sunk:#241b38;--line:#3a2d57;--fg:#eee8fb;--muted:#a99bc8;--accent:#b794ff;--accent-ink:#1a0a3a;--accent-soft:#33255a;--warn:#ffa66b;--warn-soft:#3b2617;--done:#b794ff;color-scheme:dark}}
+:root[data-palette="grape"][data-theme="dark"]{--bg:#140f20;--surface:#1c152c;--sunk:#241b38;--line:#3a2d57;--fg:#eee8fb;--muted:#a99bc8;--accent:#b794ff;--accent-ink:#1a0a3a;--accent-soft:#33255a;--warn:#ffa66b;--warn-soft:#3b2617;--done:#b794ff;color-scheme:dark}
+:root[data-palette="sky"]{--bg:#f2f8ff;--surface:#ffffff;--sunk:#e0edfd;--line:#c8dcf5;--fg:#0f1c2e;--muted:#56688a;--accent:#2b72d6;--accent-ink:#ffffff;--accent-soft:#d9e8fd;--warn:#c2410c;--warn-soft:#ffe4d4;--done:#1f5fbf}
+@media (prefers-color-scheme: dark){:root[data-palette="sky"]:not([data-theme="light"]){--bg:#0c1420;--surface:#111c2c;--sunk:#172538;--line:#263a57;--fg:#e3eefc;--muted:#94a9c8;--accent:#7cb3ff;--accent-ink:#061a38;--accent-soft:#1c3354;--warn:#ffa66b;--warn-soft:#3b2617;--done:#7cb3ff;color-scheme:dark}}
+:root[data-palette="sky"][data-theme="dark"]{--bg:#0c1420;--surface:#111c2c;--sunk:#172538;--line:#263a57;--fg:#e3eefc;--muted:#94a9c8;--accent:#7cb3ff;--accent-ink:#061a38;--accent-soft:#1c3354;--warn:#ffa66b;--warn-soft:#3b2617;--done:#7cb3ff;color-scheme:dark}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.swatch{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px 10px;border-radius:14px;border:2px solid var(--line);background:var(--surface);font:700 .9rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--fg)}
+.swatch .dots{display:flex}
+.swatch .dots i{width:22px;height:22px;border-radius:50%;border:2px solid var(--surface);margin-left:-7px;display:block}
+.swatch .dots i:first-child{margin-left:0;width:30px;height:30px}
+.swatch[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.swatch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.swatch{transition:transform .15s}.swatch:active{transform:scale(.95)}}
 </style>
 
 </head>
@@ -226,6 +252,12 @@ const monday = d => { const x = new Date(d); const k = (x.getDay()+6)%7; x.setDa
 const fmtLong = s => parse(s).toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
 const fmtShort = s => parse(s).toLocaleDateString(undefined,{month:"short",day:"numeric"});
 const uid = () => Math.random().toString(36).slice(2,9);
+const PALETTES = {"sage": {"name": "Sage", "accent": "#4c7a35", "soft": "#dfe9d4", "done": "#2f6b3a"}, "berry": {"name": "Berry", "accent": "#d1306f", "soft": "#fcdde9", "done": "#b0225c"}, "sunset": {"name": "Sunset", "accent": "#e04e2e", "soft": "#ffe0d3", "done": "#c2401f"}, "lagoon": {"name": "Lagoon", "accent": "#0a8f89", "soft": "#cdf1ec", "done": "#08807b"}, "grape": {"name": "Grape", "accent": "#7c3aed", "soft": "#e9ddff", "done": "#6d28d9"}, "sky": {"name": "Sky", "accent": "#2b72d6", "soft": "#d9e8fd", "done": "#1f5fbf"}};
+function currentPalette(){ let p = "sage"; try{ p = localStorage.getItem("fm.palette") || "sage"; }catch(e){} return PALETTES[p] ? p : "sage"; }
+function applyPalette(p){ if(p === "sage") document.documentElement.removeAttribute("data-palette"); else document.documentElement.setAttribute("data-palette", p);
+  try{ localStorage.setItem("fm.palette", p); }catch(e){}
+  const m = document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute("content", PALETTES[p].accent); }
+const hexRgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
 const CHECK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
 
 const S = {
@@ -357,6 +389,7 @@ function boot(){
     history.replaceState(null, "", location.pathname);
   }
   if(SYNC_URL && !Sync.cfg.url){ Sync.cfg.url = SYNC_URL; }
+  applyPalette(currentPalette());
   const cached = LS.get("fm.data", null);
   S.plan = normalizePlan((cached && cached.plan) || DEFAULT_PROGRAM);
   S.logs = (cached && cached.logs) || {};
@@ -756,7 +789,7 @@ const pdfSafe = s => String(s||"").replace(/[–—]/g,"-").replace(/[×]/g,"x")
 function buildPdf(jsPDF, R){
   const doc = new jsPDF({unit:"pt", format:"letter"});
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, CW = W - 2*M;
-  const green = [76,122,53], ink = [29,38,25], muted = [95,107,88], line = [211,218,203];
+  const green = hexRgb(PALETTES[currentPalette()].accent), ink = [29,38,25], muted = [95,107,88], line = [211,218,203];
   let y = 0;
   const color = c => doc.setTextColor(c[0],c[1],c[2]);
   const need = h => { if(y + h > H - 48){ doc.addPage(); y = 56; } };
@@ -991,7 +1024,16 @@ function viewProgramEditor(){
   return h;
 }
 
-function viewSettings(){
+function viewTheme(){
+  const cur = currentPalette();
+  return `<section class="panel">
+    <div class="dayhead"><h2 class="sec">Color theme</h2><span class="lbl">This device only</span></div>
+    <div class="swatches" role="group" aria-label="Color theme">${Object.entries(PALETTES).map(([k,p]) => `<button class="swatch" data-pal="${k}" aria-pressed="${k===cur}">
+      <span class="dots" aria-hidden="true"><i style="background:${p.accent}"></i><i style="background:${p.soft}"></i><i style="background:${p.done}"></i></span>${esc(p.name)}</button>`).join("")}</div>
+  </section>`;
+}
+function viewSettings(){ return viewTheme() + viewConnection(); }
+function viewConnection(){
   const c = Sync.cfg, connected = Sync.configured() && Sync.state !== "badkey";
   const appLink = location.origin + location.pathname;
   const urlField = `<div class="field"><label class="lbl" for="cfg-url">Apps Script web app URL</label><input id="cfg-url" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></div>`;
@@ -1045,6 +1087,7 @@ function openEditor(p){ S.editId = p.id; S.planDraft = clone(p); S.progWeek = 0;
 function leaveEditor(){ S.editId = null; S.planDraft = null; S.planDirty = false; S.leaveWarn = false; render(); window.scrollTo(0,0); }
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if(!t) return;
+  if(t.dataset.pal){ applyPalette(t.dataset.pal); render(); return; }
   if(t.id==="syncpill"){ if(Sync.configured() && Sync.state!=="badkey") Sync.pull(); else { S.tab="settings"; render(); } return; }
   if(t.id==="cfgsave"){ const u = $("#cfg-url"), k = $("#cfg-key").value.trim(); if(!k) return;
     Sync.cfg = {url: (u && u.value.trim()) || Sync.cfg.url || SYNC_URL, key:k}; LS.set("fm.cfg", Sync.cfg); Sync.state="idle"; S.editConn=false; render(); Sync.pull(); return; }
