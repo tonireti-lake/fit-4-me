@@ -150,6 +150,29 @@ textarea{width:100%;min-height:76px;resize:vertical}
 .exed .full{grid-column:1/-1;display:flex;gap:8px;align-items:center}
 .exed .full input{flex:1}
 .exorder{justify-content:space-between}
+.stretch{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:var(--r);border:1.5px dashed var(--accent);background:var(--surface)}
+.stretch .sthead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sttitle{font:800 1.15rem var(--f-display);text-transform:uppercase;letter-spacing:.04em}
+.sthint{margin:0;font-size:.86rem;color:var(--muted)}
+.stlist{display:flex;flex-direction:column;gap:6px}
+.strow{all:unset;cursor:pointer;display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;background:var(--sunk)}
+.strow:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stbox{flex:0 0 auto;height:26px;width:26px;border-radius:7px;border:1.5px solid var(--line);background:var(--surface);display:grid;place-items:center}
+.stbox svg{width:15px;height:15px;opacity:0}
+.strow[aria-pressed="true"] .stbox{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.strow[aria-pressed="true"] .stbox svg{opacity:1}
+.strow[aria-pressed="true"] .stn{color:var(--muted)}
+.sttext{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stn{font-weight:600}
+.sta{font-weight:500;color:var(--muted);font-size:.9rem}
+.stnote{font-size:.86rem;color:var(--muted)}
+.stlate{font:700 .74rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--done)}
+.catchup{border-color:var(--accent)}
+.steditor{display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.exed.stitem .nm{grid-column:span 2}
+.exed.stitem .st2{grid-column:span 2}
+@media (max-width:560px){.exed.stitem .nm,.exed.stitem .st2{grid-column:1/-1}}
+.rst{display:flex;flex-direction:column;gap:6px}
 .mvs{display:flex;gap:6px}
 .mv{all:unset;cursor:pointer;font:700 .85rem var(--f-display);text-transform:uppercase;letter-spacing:.05em;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
 .mv:disabled{opacity:.35;cursor:default}
@@ -441,7 +464,8 @@ function normalizeProgram(src, fallbackName){
     w.days.forEach(d => { d.exercises = d.exercises || []; });
     ensureDays(w);
   });
-  return {id:p.id, name:p.name, weekCount:p.weekCount, weeks:p.weeks, createdAt:p.createdAt || ""};
+  const items = a => (Array.isArray(a) ? a : []).map(x => ({id:x.id||uid(), name:x.name||"", amount:x.amount||"", note:x.note||""}));
+  return {id:p.id, name:p.name, weekCount:p.weekCount, weeks:p.weeks, warmup:items(p.warmup), cooldown:items(p.cooldown), createdAt:p.createdAt || ""};
 }
 // Accepts every earlier format. The old single program becomes "First program", scheduled from its start date.
 function normalizePlan(src){
@@ -548,6 +572,8 @@ async function saveLog(){
   body.dayMeta = dayMetaOf(day) || prevMeta || null;
   body.dayName = body.dayMeta ? body.dayMeta.name : (body.dayName || "");
   if(prog){ body.progId = prog.id; body.progName = prog.name; body.weekNo = logWeekIdx(body) + 1; }
+  body.stretch = {}; ["warmup","cooldown"].forEach(k => { body.stretch[k] = stretchList(body, k).map(x => ({id:x.id, name:x.name, amount:x.amount||"", note:x.note||""})); });
+  body.stretchDone = body.stretchDone || {};
   S.logs[body.date] = body; persist();
   S.dirty = false; S.status = "Saved"; paintStatus();
   Sync.queue({type:"log", date:body.date, data:body});
@@ -630,6 +656,8 @@ function viewLog(){
     </div>
     ${ds.length > 1 ? `<div class="field" style="max-width:260px;width:100%"><label class="lbl" for="daysel">Workout</label><select id="daysel">${opts}</select></div>` : ""}
   </section>`;
+  h = catchUpCard() + h;
+  h += stretchBlock(D, "warmup");
   const list = exList(D);
   if(!list.length) h += `<div class="empty">No exercises in this workout yet. Your coach adds them in the <b>Program</b> tab.</div>`;
   list.forEach(ex => {
@@ -659,6 +687,7 @@ function viewLog(){
       </div>
     </article>`;
   });
+  h += stretchBlock(D, "cooldown");
   h += `<section class="panel">
       <label class="lbl" for="notes">My notes for the coach</label>
       <textarea id="notes" placeholder="How did it feel? Any pain, questions, or swaps you made?">${esc(D.notes)}</textarea>
@@ -685,6 +714,89 @@ function summarize(l){
   const p = logProg(l), dm = l.dayMeta || dayMetaOf(dayFor(l));
   const pn = l.progName || (p && p.name) || "";
   return { name: `${pn ? pn+" · " : ""}Week ${l.weekNo || (logWeekIdx(l)+1)} · ` + ((dm && dm.name) || l.dayName || "Workout"), done, sets };
+}
+
+/* ---------- warm-up & cool-down ---------- */
+const ST_LABEL = {warmup:"Warm-up", cooldown:"Cool-down"};
+// Current and future weeks use the program's list; a logged day from an earlier week keeps the list it was logged with.
+function stretchList(D, kind){
+  const saved = S.logs[D.date], prog = logProg(D);
+  const live = ymd(monday(parse(D.date))) >= ymd(monday(new Date()));
+  if(saved && !live) return (saved.stretch && saved.stretch[kind]) || [];
+  return (prog ? prog[kind] : null) || (saved && saved.stretch && saved.stretch[kind]) || [];
+}
+const workoutHappened = l => !!(l && (l.complete || Object.values(l.entries||{}).some(a => a.some(s => s.done || s.reps))));
+function stretchStatus(l, kind){
+  const items = stretchList(l, kind); if(!items.length) return null;
+  const dn = l.stretchDone || {}, done = items.filter(i => dn[i.id]);
+  return {kind, label:ST_LABEL[kind], total:items.length, done:done.length,
+    missed:items.filter(i => !dn[i.id]).map(i => i.name || "Stretch"),
+    later:[...new Set(done.map(i => dn[i.id]).filter(d => d !== l.date))].sort()};
+}
+function stretchPending(l){
+  if(!workoutHappened(l)) return null;
+  const st = ["warmup","cooldown"].map(k => stretchStatus(l,k)).filter(x => x && x.done < x.total);
+  return st.length ? st : null;
+}
+function stretchLine(x){
+  return `${x.label} ${x.done}/${x.total}` + (x.later.length ? ` (done later ${x.later.map(fmtShort).join(", ")})` : "") + (x.missed.length ? ` · not done: ${x.missed.join(", ")}` : "");
+}
+function stretchBlock(D, kind){
+  const items = stretchList(D, kind); if(!items.length) return "";
+  const dn = D.stretchDone || {}, n = items.filter(i => dn[i.id]).length, all = n === items.length;
+  return `<section class="stretch ${kind}">
+    <div class="sthead"><span class="sttitle">${ST_LABEL[kind]}</span><span class="chip ${all?"ok":""}">${n}/${items.length} done</span></div>
+    ${all ? "" : `<p class="sthint">${kind==="warmup" ? "Before you start." : "After your workout."} Short on time? Skip them and tick them off later, even on another day.</p>`}
+    <div class="stlist">${items.map(it => `<button class="strow" data-st="${esc(it.id)}" aria-pressed="${!!dn[it.id]}">
+      <span class="stbox" aria-hidden="true">${CHECK}</span>
+      <span class="sttext"><span class="stn">${esc(it.name || "Stretch")}${it.amount ? ` <span class="sta">${esc(it.amount)}</span>` : ""}</span>
+      ${it.note ? `<span class="stnote">${esc(it.note)}</span>` : ""}
+      ${dn[it.id] && dn[it.id] !== D.date ? `<span class="stlate">Done later · ${esc(fmtShort(dn[it.id]))}</span>` : ""}</span>
+    </button>`).join("")}</div>
+  </section>`;
+}
+function catchUpCard(){
+  const today = ymd(new Date()), from = ymd(addDays(new Date(), -14));
+  const rows = Object.values(S.logs).filter(l => l.date <= today && l.date >= from && l.date !== S.date)
+    .map(l => ({l, p:stretchPending(l)})).filter(x => x.p).sort((a,b) => b.l.date.localeCompare(a.l.date)).slice(0,4);
+  if(!rows.length) return "";
+  return `<section class="panel catchup">
+    <div class="dayhead"><h2 class="sec">Stretches to catch up</h2><span class="lbl">last 2 weeks</span></div>
+    <div class="loglist">${rows.map(({l,p}) => `<button class="logitem" data-open="${esc(l.date)}">
+      <div style="min-width:0"><div class="d">${esc(fmtLong(l.date))}</div><div class="s">${p.map(x => `${x.label}: ${x.total - x.done} left`).join(" · ")}</div></div>
+      <span class="chip">Open</span></button>`).join("")}</div>
+  </section>`;
+}
+function parseStretches(text){
+  return String(text||"").split(/\n/).map(x => x.trim()).filter(Boolean)
+    .filter(x => !/^stretch(es)?\s+for\b/i.test(x) && !/^(warm[\s-]?up|cool[\s-]?down)s?\b\s*[:\-–]?\s*$/i.test(x))
+    .map(x => x.replace(/^\s*(\d+\s*[.)]|[-•*])\s*/, ""))
+    .map(x => {
+      let name = x, amount = "", note = "";
+      const parts = name.split(/\s+[-–—]\s+/);
+      if(parts.length > 1){ name = parts[0]; note = parts.slice(1).join(" - "); }
+      const m = name.match(/^(.*?)\s+(\d+\s*(?:x\s*\d+\s*)?(?:reps?|s|secs?|seconds?|mins?|minutes?)\b.*)$/i);
+      if(m){ name = m[1]; amount = m[2]; }
+      return {id:uid(), name:name.trim(), amount:amount.trim(), note:note.trim()};
+    }).filter(x => x.name);
+}
+function stretchEditor(P, kind){
+  const list = P[kind] || [], pasting = S.stPaste === kind;
+  return `<div class="steditor">
+    <div class="dayhead"><span class="sttitle">${ST_LABEL[kind]}</span><button class="link" data-stpaste="${kind}">${pasting ? "Close paste box" : "Paste a list"}</button></div>
+    ${pasting ? `<div class="field"><label class="lbl" for="st-paste-${kind}">Paste one stretch per line</label>
+      <textarea id="st-paste-${kind}" placeholder="1. Alt. Supine March 10 reps ea&#10;2. SL Knee Hug 30s hold&#10;3. Child's Pose - Pressure on right knee"></textarea>
+      <div><button class="btn ghost" data-stparse="${kind}">Add these</button></div></div>` : ""}
+    ${list.length ? "" : `<div class="empty" style="padding:12px">No ${ST_LABEL[kind].toLowerCase()} stretches.</div>`}
+    ${list.map((it,i) => `<div class="exed stitem">
+      <div class="full exorder"><span class="lbl">${i+1} of ${list.length}</span>
+        <span class="mvs"><button class="mv" data-stmv="${kind}-${i}-up" ${i===0?"disabled":""} aria-label="Move ${esc(it.name||"stretch")} up">↑ Up</button><button class="mv" data-stmv="${kind}-${i}-down" ${i===list.length-1?"disabled":""} aria-label="Move ${esc(it.name||"stretch")} down">↓ Down</button></span></div>
+      <div class="field nm"><label class="lbl" for="st-${kind}-${i}-n">Stretch</label><input id="st-${kind}-${i}-n" data-sk="${kind}" data-si="${i}" data-sf="name" value="${esc(it.name)}"></div>
+      <div class="field st2"><label class="lbl" for="st-${kind}-${i}-a">Reps / hold</label><input id="st-${kind}-${i}-a" data-sk="${kind}" data-si="${i}" data-sf="amount" value="${esc(it.amount)}" placeholder="10 reps ea, 30s hold"></div>
+      <div class="full"><input id="st-${kind}-${i}-no" aria-label="Note" data-sk="${kind}" data-si="${i}" data-sf="note" value="${esc(it.note)}" placeholder="Note (optional)"><button class="link danger" data-strm="${kind}-${i}">Remove</button></div>
+    </div>`).join("")}
+    <div><button class="link" data-stadd="${kind}">+ Add stretch</button></div>
+  </div>`;
 }
 
 /* ---------- weekly report ---------- */
@@ -717,7 +829,7 @@ function weekReport(ws){
     if(l.complete) completed++;
     days.push({date, complete:!!l.complete, name:m.name || "Workout",
       meta:[m.location, m.split, m.kpi ? "KPI: "+m.kpi : "", m.duration].filter(Boolean),
-      exercises, notes:l.notes||"", coachFeedback:l.coachFeedback||""});
+      exercises, stretches:["warmup","cooldown"].map(k => stretchStatus(l,k)).filter(Boolean), notes:l.notes||"", coachFeedback:l.coachFeedback||""});
   }
   return {start, end, range:`${fmtShort(start)} – ${fmtShort(end)}`, weekLabel, planned, completed, setsDone, setsTotal, days,
     title:`Fit-4-Me weekly report · ${CLIENT_NAME}`, generated:new Date().toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})};
@@ -732,6 +844,7 @@ function reportText(R){
   R.days.forEach(d => {
     L.push(`${fmtLong(d.date).toUpperCase()} · ${d.name}${d.meta.length ? " ("+d.meta.join(", ")+")" : ""} · ${d.complete ? "Completed" : "In progress"}`);
     d.exercises.forEach(e => L.push(`- ${e.name} [target ${e.target}]: ${e.result} (${e.done}/${e.total} sets)`));
+    d.stretches.forEach(x => L.push(`- ${stretchLine(x)}`));
     if(d.notes) L.push(`My notes: ${d.notes}`);
     if(d.coachFeedback) L.push(`Coach feedback: ${d.coachFeedback}`);
     L.push("");
@@ -760,6 +873,7 @@ function viewReport(){
       ${d.meta.length ? `<div class="chips">${d.meta.map(m=>`<span class="chip">${esc(m)}</span>`).join("")}</div>` : ""}
       <ul class="rex">${d.exercises.map(e => `<li><div class="rn">${esc(e.name)} <span class="lbl">${e.done}/${e.total} sets</span></div>
         <div class="rt">Target ${esc(e.target)}</div><div class="rr">${esc(e.result)}</div></li>`).join("")}</ul>
+      ${d.stretches.length ? `<div class="rst">${d.stretches.map(x => `<div><span class="chip ${x.done===x.total?"ok":""}">${esc(x.label)} ${x.done}/${x.total}</span>${x.later.length ? ` <span class="rt">done later ${esc(x.later.map(fmtShort).join(", "))}</span>` : ""}${x.missed.length ? `<div class="rt">Not done: ${esc(x.missed.join(", "))}</div>` : ""}</div>`).join("")}</div>` : ""}
       ${d.notes ? `<div class="rnote"><span class="lbl">My notes</span><div>${esc(d.notes)}</div></div>` : ""}
       ${d.coachFeedback ? `<div class="rnote coachfb"><span class="lbl">Coach feedback</span><div>${esc(d.coachFeedback)}</div></div>` : ""}
     </section>`;
@@ -827,6 +941,7 @@ function buildPdf(jsPDF, R){
       para(`Target ${e.target}`, 9.5, "normal", muted, 8);
       para(e.result, 10.5, "normal", ink, 8); y += 3;
     });
+    d.stretches.forEach(x => para(stretchLine(x), 10, "normal", x.done===x.total ? green : ink, 8));
     if(d.notes){ y += 2; para("My notes", 9, "bold", muted, 8); para(d.notes, 10.5, "normal", ink, 8); }
     if(d.coachFeedback){ y += 2; para("Coach feedback", 9, "bold", green, 8); para(d.coachFeedback, 10.5, "normal", ink, 8); }
     y += 10;
@@ -893,7 +1008,7 @@ function viewHistory(){
   h += `<section style="display:flex;flex-direction:column;gap:10px"><h2 class="sec">All workouts</h2>`;
   if(!all.length) h += `<div class="empty">No workouts logged yet. Pick a day above and start with the Log tab.</div>`;
   else h += `<div class="loglist">${all.map(l=>{const s=summarize(l);return `<button class="logitem" data-open="${esc(l.date)}">
-      <div style="min-width:0"><div class="d">${esc(fmtLong(l.date))}</div><div class="s">${esc(s.name)} · ${s.done}/${s.sets} sets${l.notes?" · has notes":""}${l.coachFeedback?" · coach replied":""}</div></div>
+      <div style="min-width:0"><div class="d">${esc(fmtLong(l.date))}</div><div class="s">${esc(s.name)} · ${s.done}/${s.sets} sets${l.notes?" · has notes":""}${l.coachFeedback?" · coach replied":""}${stretchPending(l)?" · stretches left":""}</div></div>
       <span class="chip ${l.complete?"ok":""}">${l.complete?"Done":"In progress"}</span></button>`}).join("")}</div>`;
   h += `</section>`;
   return h;
@@ -989,6 +1104,12 @@ function viewProgramEditor(){
       <div class="field"><label class="lbl" for="p-weeks">Program length</label><select id="p-weeks">${[1,2,3,4].map(n=>`<option value="${n}" ${n===P.weekCount?"selected":""}>${n} week${n>1?"s":""}</option>`).join("")}</select></div>
     </div>
     ${uses.length ? `<p class="status" style="margin:0;max-width:65ch">Scheduled ${uses.map(e=>esc(fmtShort(e.start))).join(", ")}. Changes apply to every time it's scheduled. Days already logged keep what was planned then. To keep this version as it is, go back and use Duplicate instead.</p>` : ""}
+  </section>
+  <section class="panel">
+    <h2 class="sec">Warm-up &amp; cool-down</h2>
+    <p class="status" style="margin:0;max-width:65ch">Shown before and after every workout in this program. They're tracked apart from the workout, so they can be ticked off later.</p>
+    ${stretchEditor(P, "warmup")}
+    ${stretchEditor(P, "cooldown")}
   </section>
   <nav class="weektabs" aria-label="Program weeks">${P.weeks.slice(0,P.weekCount).map((w,i)=>`<button data-pw="${i}" aria-pressed="${i===wi}">Week ${i+1}</button>`).join("")}</nav>
   <section class="panel">
@@ -1126,6 +1247,9 @@ document.addEventListener("click", e => {
       if(!s.reps && reps) s.reps = String(reps).split(/[-–\s]/)[0];
       if(!s.lbs && ex && !ex.noWeight && lbs) s.lbs = lbs; }
     markDirty(); render(); return; }
+  if(t.dataset.st){ D.stretchDone = D.stretchDone || {};
+    if(D.stretchDone[t.dataset.st]) delete D.stretchDone[t.dataset.st]; else D.stretchDone[t.dataset.st] = ymd(new Date());
+    markDirty(); render(); return; }
   if(t.dataset.addset){ const a = D.entries[t.dataset.addset] = D.entries[t.dataset.addset] || []; const last = a[a.length-1]||{}; a.push({reps:"",lbs:last.lbs||"",done:false}); markDirty(); render(); return; }
   if(t.dataset.rmset){ D.entries[t.dataset.rmset].pop(); markDirty(); render(); return; }
   if(t.id==="complete"){ D.complete = !D.complete; S.dirty = true; saveLog().then(render); render(); return; }
@@ -1161,6 +1285,16 @@ document.addEventListener("click", e => {
   if(t.id==="plancancel"){ leaveEditor(); return; }
   const W = P.weeks[S.progWeek||0];
   if(t.dataset.pw!==undefined){ S.progWeek = +t.dataset.pw; render(); return; }
+  if(t.dataset.stpaste){ S.stPaste = S.stPaste === t.dataset.stpaste ? null : t.dataset.stpaste; render(); return; }
+  if(t.dataset.stparse){ const k = t.dataset.stparse, items = parseStretches($("#st-paste-"+k).value);
+    if(!items.length) return; P[k] = (P[k]||[]).concat(items); S.stPaste = null; planChanged(true); return; }
+  if(t.dataset.stadd){ const k = t.dataset.stadd; P[k] = P[k] || []; P[k].push({id:uid(), name:"", amount:"", note:""}); planChanged(true); return; }
+  if(t.dataset.strm){ const [k,i] = t.dataset.strm.split("-"); P[k].splice(+i,1); planChanged(true); return; }
+  if(t.dataset.stmv){ const [k,i0,dir] = t.dataset.stmv.split("-"), list = P[k], i = +i0, j = dir==="up" ? i-1 : i+1;
+    if(j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; planChanged(true);
+    const next = document.querySelector(`[data-stmv="${k}-${j}-${dir}"]:not([disabled])`) || document.querySelector(`[data-stmv^="${k}-${j}-"]:not([disabled])`);
+    if(next) next.focus({preventScroll:true}); return; }
   if(t.dataset.wm){ W.mode = t.dataset.wm; ensureDays(W); planChanged(true); return; }
   if(t.id==="copyprev"){ P.weeks[S.progWeek] = clone(P.weeks[S.progWeek-1]); planChanged(true); return; }
   if(t.dataset.addex!==undefined){ W.days[+t.dataset.addex].exercises.push({id:uid(),name:"",sets:3,reps:"",lbs:"",noWeight:false,notes:""}); planChanged(true); return; }
@@ -1181,6 +1315,7 @@ document.addEventListener("input", e => {
   const P = S.planDraft; if(!P || !S.editId) return;
   const W = P.weeks[S.progWeek||0];
   if(el.dataset.p){ P[el.dataset.p] = el.value; }
+  else if(el.dataset.sk){ P[el.dataset.sk][+el.dataset.si][el.dataset.sf] = el.value; }
   else if(el.dataset.e!==undefined){ const ex = W.days[+el.dataset.d].exercises[+el.dataset.e]; ex[el.dataset.f] = el.dataset.f==="sets" ? (parseInt(el.value)||el.value) : el.value; }
   else if(el.dataset.d!==undefined){ W.days[+el.dataset.d][el.dataset.f] = el.value; }
   else return;
