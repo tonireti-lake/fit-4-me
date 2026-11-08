@@ -149,6 +149,12 @@ textarea{width:100%;min-height:76px;resize:vertical}
 .exed{display:grid;grid-template-columns:2fr 64px 1fr 1fr;gap:8px;padding:10px;border-radius:8px;background:var(--sunk)}
 .exed .full{grid-column:1/-1;display:flex;gap:8px;align-items:center}
 .exed .full input{flex:1}
+.exorder{justify-content:space-between}
+.mvs{display:flex;gap:6px}
+.mv{all:unset;cursor:pointer;font:700 .85rem var(--f-display);text-transform:uppercase;letter-spacing:.05em;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.mv:disabled{opacity:.35;cursor:default}
+.mv:not(:disabled):active{background:var(--accent-soft)}
+.mv:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .exed input{width:100%}
 .exed .check input{flex:0 0 auto;width:20px;height:20px;margin:0}
 @media (max-width:560px){
@@ -482,7 +488,11 @@ function exList(D){
   const saved = S.logs[D.date], day = dayFor(D), out = [], seen = new Set();
   const live = ymd(monday(parse(D.date))) >= ymd(monday(new Date()));
   const fromDay = ex => ({id:ex.id, name:ex.name, target:targetText(ex), sets:ex.sets, reps:ex.reps, lbs:ex.lbs, noWeight:!!ex.noWeight, notes:ex.notes||""});
-  if(saved && saved.exInfo && saved.dayId === D.dayId && Object.keys(saved.exInfo).length){
+  if(saved && saved.exInfo && saved.dayId === D.dayId && Object.keys(saved.exInfo).length && live && day){
+    // current and future weeks follow the program's order; anything only in the saved day goes last
+    day.exercises.forEach(ex => { out.push(fromDay(ex)); seen.add(ex.id); });
+    Object.entries(saved.exInfo).forEach(([id,x]) => { if(!seen.has(id)){ out.push({id, name:x.name, target:x.target, noWeight:!!x.noWeight, notes:x.notes||""}); seen.add(id); } });
+  } else if(saved && saved.exInfo && saved.dayId === D.dayId && Object.keys(saved.exInfo).length){
     Object.entries(saved.exInfo).forEach(([id,x]) => {
       const cur = day && day.exercises.find(e => e.id === id);
       out.push(Object.assign({id, name:x.name, target:x.target, noWeight:!!x.noWeight, notes:x.notes||""}, cur && live ? fromDay(cur) : {}));
@@ -1008,6 +1018,8 @@ function viewProgramEditor(){
       <span class="lbl">Exercises</span>
       ${d.exercises.length ? "" : `<div class="empty" style="padding:14px">No exercises yet.</div>`}
       ${d.exercises.map((ex,ei)=>`<div class="exed">
+        <div class="full exorder"><span class="lbl">Exercise ${ei+1} of ${d.exercises.length}</span>
+          <span class="mvs"><button class="mv" data-mv="${di}-${ei}-up" ${ei===0?"disabled":""} aria-label="Move ${esc(ex.name||"exercise")} up">↑ Up</button><button class="mv" data-mv="${di}-${ei}-down" ${ei===d.exercises.length-1?"disabled":""} aria-label="Move ${esc(ex.name||"exercise")} down">↓ Down</button></span></div>
         <div class="field nm"><label class="lbl" for="e-${di}-${ei}-n">Exercise</label><input id="e-${di}-${ei}-n" data-d="${di}" data-e="${ei}" data-f="name" value="${esc(ex.name)}"></div>
         <div class="field"><label class="lbl" for="e-${di}-${ei}-s">Sets</label><input id="e-${di}-${ei}-s" inputmode="numeric" data-d="${di}" data-e="${ei}" data-f="sets" value="${esc(ex.sets)}"></div>
         <div class="field"><label class="lbl" for="e-${di}-${ei}-r">Reps / time</label><input id="e-${di}-${ei}-r" data-d="${di}" data-e="${ei}" data-f="reps" value="${esc(ex.reps)}"></div>
@@ -1152,6 +1164,12 @@ document.addEventListener("click", e => {
   if(t.dataset.wm){ W.mode = t.dataset.wm; ensureDays(W); planChanged(true); return; }
   if(t.id==="copyprev"){ P.weeks[S.progWeek] = clone(P.weeks[S.progWeek-1]); planChanged(true); return; }
   if(t.dataset.addex!==undefined){ W.days[+t.dataset.addex].exercises.push({id:uid(),name:"",sets:3,reps:"",lbs:"",noWeight:false,notes:""}); planChanged(true); return; }
+  if(t.dataset.mv){ const [di,ei,dir] = t.dataset.mv.split("-"), list = W.days[+di].exercises, i = +ei, j = dir==="up" ? i-1 : i+1;
+    if(j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; planChanged(true);
+    // keep keyboard focus on the exercise that moved
+    const next = document.querySelector(`[data-mv="${di}-${j}-${dir}"]:not([disabled])`) || document.querySelector(`[data-mv^="${di}-${j}-"]:not([disabled])`);
+    if(next) next.focus({preventScroll:true}); return; }
   if(t.dataset.rmex){ const [di,ei]=t.dataset.rmex.split("-").map(Number); W.days[di].exercises.splice(ei,1); planChanged(true); return; }
 });
 document.addEventListener("input", e => {
